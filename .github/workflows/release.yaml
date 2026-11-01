@@ -10,6 +10,10 @@ on:
         description: 'Версия релиза (например, v1.0.0)'
         required: true
         default: 'v1.0.0'
+      message:
+        description: 'Описание (changelog) для релиза и ТГ'
+        required: false
+        default: ''
 
 jobs:
   release:
@@ -25,16 +29,23 @@ jobs:
         with:
           go-version: '1.26'
 
-      # Определяем единый тег/версию для использования в шагах
-      - name: Get release tag
+      # Определение тега / версии и пользовательского сообщения
+      - name: Get release tag and message
         id: tag
         shell: bash
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "VERSION=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+            echo "CUSTOM_MSG=${{ github.event.inputs.message }}" >> $GITHUB_OUTPUT
           else
             echo "VERSION=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "CUSTOM_MSG=" >> $GITHUB_OUTPUT
           fi
+
+      # Установка 7-Zip CLI (p7zip-full)
+      - name: Install 7-Zip
+        run: |
+          sudo apt-get update && sudo apt-get install -y p7zip-full p7zip-rar
 
       # --- СБОРКА ДЛЯ LINUX ---
       - name: Build Linux binary
@@ -71,19 +82,53 @@ jobs:
             -out florenbot_signed.exe
           mv florenbot_signed.exe florenbot.exe
 
-      # --- СОЗДАНИЕ SHA256 ХЕШЕЙ И УПАКОВКА ДЛЯ WINDOWS ---
+      # --- СОЗДАНИЕ LIGHT SFX АРХИВА ДЛЯ WINDOWS (С Redis / MariaDB конфигом) ---
+      - name: Create Windows Light SFX Archive
+        run: |
+          cat << 'EOF' > sfx_config.txt
+          ;!@Install@!UTF-8!
+          Title="FlorenBot Light Setup"
+          BeginPrompt="Запустить установку FlorenBot Light (требуются запущенные Redis и MariaDB)?"
+          RunProgram="floren_setup_env.bat"
+          ;!@InstallEnd@!
+          EOF
+
+          cat << 'EOF' > floren_setup_env.bat
+          @echo off
+          TITLE FlorenBot Light Launcher
+          echo [INFO] Checking environment for FlorenBot...
+          echo [INFO] Note: Ensure MariaDB and Redis services are active locally.
+          
+          if not exist ".env" (
+              echo [WARNING] .env file not found. Creating a template...
+              echo DB_HOST=localhost > .env
+              echo DB_PORT=3306 >> .env
+              echo REDIS_HOST=localhost >> .env
+              echo REDIS_PORT=6379 >> .env
+          )
+          
+          echo [INFO] Starting FlorenBot...
+          start florenbot.exe
+          EOF
+
+          7z a -t7z florenbot_payload.7z florenbot.exe floren_setup_env.bat
+
+          SFX_PATH=$(find /usr -name "7z.sfx" | head -n 1)
+          if [ -z "$SFX_PATH" ]; then
+            wget -q https://raw.githubusercontent.com/theonlyicecutter/7z-sfx/master/7z.sfx -O 7z.sfx
+            SFX_PATH="7z.sfx"
+          fi
+
+          cat "$SFX_PATH" sfx_config.txt florenbot_payload.7z > florenbot-windows-amd64-light-sfx.exe
+
+      # --- СОЗДАНИЕ SHA256 ХЕШЕЙ И ОБЫЧНОГО ZIP ---
       - name: Create SHA256 sums and package Windows zip
         run: |
-          # Считаем хеш для виндового exe / zip (пока создадим хеш для exe, потом для архива)
           sha256sum florenbot.exe > florenbot.exe.sha256
-          
-          # Пакуем exe и его sha256 в zip-архив
           zip florenbot-windows-amd64.zip florenbot.exe florenbot.exe.sha256
           
-          # Считаем итоговый sha256 для готового zip-архива
           sha256sum florenbot-windows-amd64.zip > florenbot-windows-amd64.zip.sha256
-          
-          # Считаем sha256 для Linux tar.gz
+          sha256sum florenbot-windows-amd64-light-sfx.exe > florenbot-windows-amd64-light-sfx.exe.sha256
           sha256sum florenbot-linux-amd64.tar.gz > florenbot-linux-amd64.tar.gz.sha256
 
       # --- GPG ПОДПИСЬ ---
@@ -97,6 +142,7 @@ jobs:
         run: |
           gpg --batch --pinentry-mode loopback --detach-sign --armor florenbot-linux-amd64.tar.gz
           gpg --batch --pinentry-mode loopback --detach-sign --armor florenbot-windows-amd64.zip
+          gpg --batch --pinentry-mode loopback --detach-sign --armor florenbot-windows-amd64-light-sfx.exe
 
       - name: Create publickey.asc file
         run: |
@@ -116,4 +162,31 @@ jobs:
             florenbot-windows-amd64.zip
             florenbot-windows-amd64.zip.asc
             florenbot-windows-amd64.zip.sha256
+            florenbot-windows-amd64-light-sfx.exe
+            florenbot-windows-amd64-light-sfx.exe.asc
+            florenbot-windows-amd64-light-sfx.exe.sha256
             publickey.asc
+
+      # --- ОТПРАВКА УВЕДОМЛЕНИЯ В TELEGRAM БОТ ---
+      - name: Send Telegram Notification
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          RELEASE_TAG: ${{ steps.tag.outputs.VERSION }}
+          CUSTOM_MSG: ${{ steps.tag.outputs.CUSTOM_MSG }}
+          REPO_URL: "https://github.com/${{ github.repository }}"
+        run: |
+          RELEASE_URL="${REPO_URL}/releases/tag/${RELEASE_TAG}"
+          
+          # Формируем блок описания, если пользователь ввел его при ручном запуске
+          DESC_SECTION=""
+          if [ -n "$CUSTOM_MSG" ]; then
+            DESC_SECTION="%0A%0A📝 **Описание:**%0A${CUSTOM_MSG}"
+          fi
+
+          MESSAGE="🔔 **Новое обновление**%0A%0A📦 **Версия:** \`${RELEASE_TAG}\`${DESC_SECTION}%0A%0A🔗 [Смотреть релиз и скачать файлы](${RELEASE_URL})%0A%0AДоступны свежие сборки для Linux и Windows (включая Light SFX архив с предварительной конфигурацией под MariaDB и Redis)."
+          
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CH_ID:-$TELEGRAM_CHAT_ID}" \
+            -d "parse_mode=Markdown" \
+            -d "text=${MESSAGE}"
