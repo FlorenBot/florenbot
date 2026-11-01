@@ -4,6 +4,15 @@ on:
   push:
     tags: [ 'v*.*.*' ]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Версия релиза (например, v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+      message:
+        description: 'Описание (changelog) для ТГ'
+        required: false
+        default: ''
 
 env:
   REGISTRY: docker.io
@@ -19,6 +28,20 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      # Определение актуальной версии (тега) и кастомного сообщения
+      - name: Get release tag and message
+        id: tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "VERSION=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+            echo "CUSTOM_MSG=${{ github.event.inputs.message }}" >> $GITHUB_OUTPUT
+          else
+            REF_NAME="${{ github.ref_name }}"
+            echo "VERSION=${REF_NAME}" >> $GITHUB_OUTPUT
+            echo "CUSTOM_MSG=" >> $GITHUB_OUTPUT
+          fi
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -40,7 +63,7 @@ jobs:
           images: ${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' }}
-            type=semver,pattern={{version}}
+            type=semver,pattern={{version}},value=${{ steps.tag.outputs.VERSION }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
@@ -50,3 +73,29 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      # --- ОТПРАВКА УВЕДОМЛЕНИЯ В TELEGRAM БОТ ---
+      - name: Send Telegram Notification
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          RELEASE_TAG: ${{ steps.tag.outputs.VERSION }}
+          CUSTOM_MSG: ${{ steps.tag.outputs.CUSTOM_MSG }}
+          DOCKERHUB_URL: "https://hub.docker.com/r/${{ env.IMAGE_NAME }}"
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "[WARNING] Telegram secrets are missing. Skipping notification."
+            exit 0
+          fi
+
+          DESC_SECTION=""
+          if [ -n "$CUSTOM_MSG" ]; then
+            DESC_SECTION="%0A%0A📝 **Описание:**%0A${CUSTOM_MSG}"
+          fi
+
+          MESSAGE="🐳 **Docker Hub: Новый образ опубликован!**%0A%0A📦 **Тег:** \`${{ env.IMAGE_NAME }}:${RELEASE_TAG}\`${DESC_SECTION}%0A%0A🔗 [Смотреть на Docker Hub](${DOCKERHUB_URL})"
+          
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CHAT_ID}" \
+            -d "parse_mode=Markdown" \
+            -d "text=${MESSAGE}"
