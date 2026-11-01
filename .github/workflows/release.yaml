@@ -82,7 +82,7 @@ jobs:
             -out florenbot_signed.exe
           mv florenbot_signed.exe florenbot.exe
 
-      # --- СОЗДАНИЕ LIGHT SFX АРХИВА ДЛЯ WINDOWS (С Redis / MariaDB конфигом) ---
+        # --- СОЗДАНИЕ LIGHT SFX АРХИВА ДЛЯ WINDOWS (С Redis / MariaDB конфигом) ---
       - name: Create Windows Light SFX Archive
         run: |
           cat << 'EOF' > sfx_config.txt
@@ -111,15 +111,24 @@ jobs:
           start florenbot.exe
           EOF
 
+          # Запаковываем бинарник и скрипт в 7z архив
           7z a -t7z florenbot_payload.7z florenbot.exe floren_setup_env.bat
 
-          SFX_PATH=$(find /usr -name "7z.sfx" | head -n 1)
-          if [ -z "$SFX_PATH" ]; then
-            wget -q https://raw.githubusercontent.com/theonlyicecutter/7z-sfx/master/7z.sfx -O 7z.sfx
-            SFX_PATH="7z.sfx"
+          # Надежная загрузка модуля 7z.sfx (например, из официального репозитория p7zip / Debian)
+          echo "[INFO] Downloading 7z.sfx module..."
+          curl -L -o 7z.sfx "https://raw.githubusercontent.com/jinod/p7zip/master/CPP/7zip/UI/Console/7z.sfx" || \
+          curl -L -o 7z.sfx "https://raw.githubusercontent.com/theonlyicecutter/7z-sfx/master/7z.sfx"
+
+          # Проверяем, что файл скачался и он не пустой
+          if [ ! -s "7z.sfx" ]; then
+            echo "[ERROR] Failed to download 7z.sfx module!"
+            exit 1
           fi
 
-          cat "$SFX_PATH" sfx_config.txt florenbot_payload.7z > florenbot-windows-amd64-light-sfx.exe
+          # Склеиваем модули в единый исполняемый SFX файл
+          cat 7z.sfx sfx_config.txt florenbot_payload.7z > florenbot-windows-amd64-light-sfx.exe
+          echo "[INFO] SFX archive created successfully."
+
 
       # --- СОЗДАНИЕ SHA256 ХЕШЕЙ И ОБЫЧНОГО ZIP ---
       - name: Create SHA256 sums and package Windows zip
