@@ -16,20 +16,13 @@ on:
         default: ''
 
 jobs:
-  release:
+  # --- ОПРЕДЕЛЕНИЕ ТЕГА И ВЕРСИИ ---
+  prepare:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    outputs:
+      version: ${{ steps.tag.outputs.VERSION }}
+      custom_msg: ${{ steps.tag.outputs.CUSTOM_MSG }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.26'
-
-      # Определение тега / версии и пользовательского сообщения
       - name: Get release tag and message
         id: tag
         shell: bash
@@ -42,48 +35,86 @@ jobs:
             echo "CUSTOM_MSG=" >> $GITHUB_OUTPUT
           fi
 
-      # Установка 7-Zip CLI (p7zip-full)
-      - name: Install 7-Zip
-        run: |
-          sudo apt-get update && sudo apt-get install -y p7zip-full p7zip-rar
+  # --- СБОРКА ДЛЯ LINUX И ANDROID (TERMUX) ---
+  build-unix:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      # --- СБОРКА ДЛЯ LINUX (AMD64) ---
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
       - name: Build Linux amd64 binary
         run: |
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -v -o florenbot ./bot
           tar -czvf florenbot-linux-amd64.tar.gz florenbot
           rm florenbot
 
-      # --- СБОРКА ДЛЯ RASPBERRY PI / LINUX (ARM64) ---
-      - name: Build Linux ARM64 binary (Raspberry Pi)
+      - name: Build Linux ARM64 (Raspberry Pi) binary
         run: |
           CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -v -o florenbot-rpi ./bot
           tar -czvf florenbot-linux-arm64.tar.gz florenbot-rpi
           rm florenbot-rpi
 
-      # --- СБОРКА ДЛЯ ANDROID TERMUX (AARCH64) ---
-      - name: Build Android AArch64 binary (Termux)
+      - name: Build Android Termux (aarch64) binary
         run: |
           CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -v -o florenbot-termux ./bot
           tar -czvf florenbot-android-aarch64.tar.gz florenbot-termux
           rm florenbot-termux
 
-      # --- СБОРКА ДЛЯ WINDOWS ---
+      - name: Create SHA256 and GPG Signatures
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          sha256sum florenbot-linux-amd64.tar.gz > florenbot-linux-amd64.tar.gz.sha256
+          sha256sum florenbot-linux-arm64.tar.gz > florenbot-linux-arm64.tar.gz.sha256
+          sha256sum florenbot-android-aarch64.tar.gz > florenbot-android-aarch64.tar.gz.sha256
+
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --import --batch
+          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
+          echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
+          gpg --batch --pinentry-mode loopback --passphrase "${{ secrets.GPG_PASSPHRASE }}" --detach-sign --armor florenbot-linux-amd64.tar.gz
+          gpg --batch --pinentry-mode loopback --passphrase "${{ secrets.GPG_PASSPHRASE }}" --detach-sign --armor florenbot-linux-arm64.tar.gz
+          gpg --batch --pinentry-mode loopback --passphrase "${{ secrets.GPG_PASSPHRASE }}" --detach-sign --armor florenbot-android-aarch64.tar.gz
+
+      - name: Upload Unix Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: unix-artifacts
+          path: |
+            florenbot-linux-amd64.tar.gz*
+            florenbot-linux-arm64.tar.gz*
+            florenbot-android-aarch64.tar.gz*
+
+  # --- СБОРКА ДЛЯ WINDOWS И ПОДПИСЬ ---
+  build-windows:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
+      - name: Install 7-Zip and osslsigncode
+        run: |
+          sudo apt-get update && sudo apt-get install -y p7zip-full p7zip-rar osslsigncode
+
       - name: Build Windows binary
         run: |
           CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -v -o florenbot.exe ./bot
 
-      # --- ПОДПИСЬ WINDOWS EXECUTABLE (OSSLSIGNCODE) ---
-      - name: Install osslsigncode
-        run: |
-          sudo apt-get update && sudo apt-get install -y osslsigncode
-
-      - name: Decode Windows Certificate
-        run: |
-          echo "${{ secrets.WIN_CERT_BASE64 }}" | base64 --decode > cert.pfx
-
       - name: Sign Windows binary
         run: |
+          echo "${{ secrets.WIN_CERT_BASE64 }}" | base64 --decode > cert.pfx
           osslsigncode sign \
             -pkcs12 cert.pfx \
             -pass "${{ secrets.WIN_CERT_PASSWORD }}" \
@@ -94,8 +125,7 @@ jobs:
             -out florenbot_signed.exe
           mv florenbot_signed.exe florenbot.exe
 
-      # --- СОЗДАНИЕ LIGHT SFX АРХИВА ДЛЯ WINDOWS ---
-      - name: Create Windows Light SFX Archive
+      - name: Create Windows Light SFX Archive and ZIP
         run: |
           cat << 'EOF' > sfx_config.txt
           ;!@Install@!UTF-8!
@@ -110,7 +140,6 @@ jobs:
           TITLE FlorenBot Light Launcher
           echo [INFO] Checking environment for FlorenBot...
           echo [INFO] Note: Ensure MariaDB and Redis services are active locally.
-          
           if not exist ".env" (
               echo [WARNING] .env file not found. Creating a template...
               echo DB_HOST=localhost > .env
@@ -118,284 +147,84 @@ jobs:
               echo REDIS_HOST=localhost >> .env
               echo REDIS_PORT=6379 >> .env
           )
-          
           echo [INFO] Starting FlorenBot...
           start florenbot.exe
           EOF
 
           7z a -t7z florenbot_payload.7z florenbot.exe floren_setup_env.bat
 
-          echo "[INFO] Downloading 7z.sfx module..."
           curl -L -o 7z.sfx "https://raw.githubusercontent.com/jinod/p7zip/master/CPP/7zip/UI/Console/7z.sfx" || \
           curl -L -o 7z.sfx "https://raw.githubusercontent.com/theonlyicecutter/7z-sfx/master/7z.sfx"
 
-          if [ ! -s "7z.sfx" ]; then
-            echo "[ERROR] 7z.sfx module is missing or empty!"
-            exit 1
-          fi
-
           cat 7z.sfx sfx_config.txt florenbot_payload.7z > florenbot-windows-amd64-light-sfx.exe
-          echo "[INFO] SFX archive created successfully."
 
-      # --- СОЗДАНИЕ SHA256 ХЕШЕЙ И АРХИВОВ ---
-      - name: Create SHA256 sums and package Windows zip
-        run: |
           sha256sum florenbot.exe > florenbot.exe.sha256
           zip florenbot-windows-amd64.zip florenbot.exe florenbot.exe.sha256
-          
           sha256sum florenbot-windows-amd64.zip > florenbot-windows-amd64.zip.sha256
           sha256sum florenbot-windows-amd64-light-sfx.exe > florenbot-windows-amd64-light-sfx.exe.sha256
-          
-          sha256sum florenbot-linux-amd64.tar.gz > florenbot-linux-amd64.tar.gz.sha256
-          sha256sum florenbot-linux-arm64.tar.gz > florenbot-linux-arm64.tar.gz.sha256
-          sha256sum florenbot-android-aarch64.tar.gz > florenbot-android-aarch64.tar.gz.sha256
 
-      # --- GPG ПОДПИСЬ ---
-      - name: Import GPG Key
-        uses: crazy-max/ghaction-import-gpg@v6
-        with:
-          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
-          passphrase: ${{ secrets.GPG_PASSPHRASE }}
-
-      - name: Sign archives with GPG
+      - name: Sign Windows Archives with GPG
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
-          gpg --batch --pinentry-mode loopback --detach-sign --armor florenbot-linux-amd64.tar.gz
-          gpg --batch --pinentry-mode loopback --detach-sign --armor florenbot-linux-arm64.tar.gz
-          gpg --batch --pinentry-mode loopback --detach-sign --armor florenbot-android-aarch64.tar.gz
-          gpg --batch --pinentry-mode loopback --detach-sign --armor florenbot-windows-amd64.zip
-          gpg --batch --pinentry-mode loopback --detach-sign --armor florenbot-windows-amd64-light-sfx.exe
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --import --batch
+          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
+          echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
+          gpg --batch --pinentry-mode loopback --passphrase "${{ secrets.GPG_PASSPHRASE }}" --detach-sign --armor florenbot-windows-amd64.zip
+          gpg --batch --pinentry-mode loopback --passphrase "${{ secrets.GPG_PASSPHRASE }}" --detach-sign --armor florenbot-windows-amd64-light-sfx.exe
 
-      - name: Create publickey.asc file
-        run: |
-          cat << 'EOF' > publickey.asc
-          ${{ secrets.GPG_PUBLIC_KEY }}
-          EOF
-
-      # --- ПУБЛИКАЦИЯ РЕЛИЗА ---
-      - name: Publish Release and Upload Assets
-        uses: softprops/action-gh-release@v2
+      - name: Upload Windows Build Artifacts
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ steps.tag.outputs.VERSION }}
-          files: |
-            florenbotДля того чтобы раздельно собирать бинарники под **Termux (Android aarch64)** и под **Raspberry Pi (Linux arm64 / aarch64)**, добавим два отдельных шага сборки с понятным неймингом артефактов. 
+          name: windows-artifacts
+          path: |
+            florenbot-windows-amd64.zip*
+            florenbot-windows-amd64-light-sfx.exe*
 
-Готовый обновленный файл `.github/workflows/release.yml`:
-
-```yaml
-name: Release
-
-on:
-  push:
-    tags:
-      - 'v*'
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Версия релиза (например, v1.0.0)'
-        required: true
-        default: 'v1.0.0'
-      message:
-        description: 'Описание (changelog) для релиза и ТГ'
-        required: false
-        default: ''
-
-jobs:
+  # --- ПУБЛИКАЦИЯ РЕЛИЗА И УВЕДОМЛЕНИЕ ---
   release:
+    needs: [build-unix, build-windows, prepare]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
         with:
-          go-version: '1.26'
-
-      # Определение тега / версии и пользовательского сообщения
-      - name: Get release tag and message
-        id: tag
-        shell: bash
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "VERSION=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
-            echo "CUSTOM_MSG=${{ github.event.inputs.message }}" >> $GITHUB_OUTPUT
-          else
-            echo "VERSION=${{ github.ref_name }}" >> $GITHUB_OUTPUT
-            echo "CUSTOM_MSG=" >> $GITHUB_OUTPUT
-          fi
-
-      # Установка 7-Zip CLI (p7zip-full)
-      - name: Install 7-Zip
-        run: |
-          sudo apt-get update && sudo apt-get install -y p7zip-full p7zip-rar
-
-      # --- СБОРКА ДЛЯ LINUX (AMD64) ---
-      - name: Build Linux amd64 binary
-        run: |
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -v -o florenbot ./bot
-          tar -czvf florenbot-linux-amd64.tar.gz florenbot
-          rm florenbot
-
-      # --- СБОРКА ДЛЯ RASPBERRY PI (LINUX ARM64 / AARCH64) ---
-      - name: Build Linux ARM64 (Raspberry Pi) binary
-        run: |
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -v -o florenbot-rpi ./bot
-          tar -czvf florenbot-linux-arm64.tar.gz florenbot-rpi
-          rm florenbot-rpi
-
-      # --- СБОРКА ДЛЯ ANDROID TERMUX (AARCH64) ---
-      - name: Build Android Termux (aarch64) binary
-        run: |
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -v -o florenbot-termux ./bot
-          tar -czvf florenbot-android-aarch64.tar.gz florenbot-termux
-          rm florenbot-termux
-
-      # --- СБОРКА ДЛЯ WINDOWS ---
-      - name: Build Windows binary
-        run: |
-          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -v -o florenbot.exe ./bot
-
-      # --- ПОДПИСЬ WINDOWS EXECUTABLE (OSSLSIGNCODE) ---
-      - name: Install osslsigncode
-        run: |
-          sudo apt-get update && sudo apt-get install -y osslsigncode
-
-      - name: Decode Windows Certificate
-        run: |
-          echo "${{ secrets.WIN_CERT_BASE64 }}" | base64 --decode > cert.pfx
-
-      - name: Sign Windows binary
-        run: |
-          osslsigncode sign \
-            -pkcs12 cert.pfx \
-            -pass "${{ secrets.WIN_CERT_PASSWORD }}" \
-            -n "FlorenBot" \
-            -i "[https://github.com/$](https://github.com/$){{ github.repository }}" \
-            -ts "[http://timestamp.digicert.com](http://timestamp.digicert.com)" \
-            -in florenbot.exe \
-            -out florenbot_signed.exe
-          mv florenbot_signed.exe florenbot.exe
-
-      # --- СОЗДАНИЕ LIGHT SFX АРХИВА ДЛЯ WINDOWS ---
-      - name: Create Windows Light SFX Archive
-        run: |
-          cat << 'EOF' > sfx_config.txt
-          ;!@Install@!UTF-8!
-          Title="FlorenBot Light Setup"
-          BeginPrompt="Запустить установку FlorenBot Light (требуются запущенные Redis и MariaDB)?"
-          RunProgram="floren_setup_env.bat"
-          ;!@InstallEnd@!
-          EOF
-
-          cat << 'EOF' > floren_setup_env.bat
-          @echo off
-          TITLE FlorenBot Light Launcher
-          echo [INFO] Checking environment for FlorenBot...
-          echo [INFO] Note: Ensure MariaDB and Redis services are active locally.
-          
-          if not exist ".env" (
-              echo [WARNING] .env file not found. Creating a template...
-              echo DB_HOST=localhost > .env
-              echo DB_PORT=3306 >> .env
-              echo REDIS_HOST=localhost >> .env
-              echo REDIS_PORT=6379 >> .env
-          )
-          
-          echo [INFO] Starting FlorenBot...
-          start florenbot.exe
-          EOF
-
-          7z a -t7z florenbot_payload.7z florenbot.exe floren_setup_env.bat
-
-          echo "[INFO] Downloading 7z.sfx module..."
-          curl -L -o 7z.sfx "[https://raw.githubusercontent.com/jinod/p7zip/master/CPP/7zip/UI/Console/7z.sfx](https://raw.githubusercontent.com/jinod/p7zip/master/CPP/7zip/UI/Console/7z.sfx)" || \
-          curl -L -o 7z.sfx "[https://raw.githubusercontent.com/theonlyicecutter/7z-sfx/master/7z.sfx](https://raw.githubusercontent.com/theonlyicecutter/7z-sfx/master/7z.sfx)"
-
-          if [ ! -s "7z.sfx" ]; then
-            echo "[ERROR] 7z.sfx module is missing or empty!"
-            exit 1
-          fi
-
-          cat 7z.sfx sfx_config.txt florenbot_payload.7z > florenbot-windows-amd64-light-sfx.exe
-          echo "[INFO] SFX archive created successfully."
-
-      # --- СОЗДАНИЕ SHA256 ХЕШЕЙ И АРХИВОВ ---
-      - name: Create SHA256 sums and package Windows zip
-        run: |
-          sha256sum florenbot.exe > florenbot.exe.sha256
-          zip florenbot-windows-amd64.zip florenbot.exe florenbot.exe.sha256
-          
-          sha256sum florenbot-windows-amd64.zip > florenbot-windows-amd64.zip.sha256
-          sha256sum florenbot-windows-amd64-light-sfx.exe > florenbot-windows-amd64-light-sfx.exe.sha256
-          sha256sum florenbot-linux-amd64.tar.gz > florenbot-linux-amd64.tar.gz.sha256
-          sha256sum florenbot-linux-arm64.tar.gz > florenbot-linux-arm64.tar.gz.sha256
-          sha256sum florenbot-android-aarch64.tar.gz > florenbot-android-aarch64.tar.gz.sha256
-
-      # --- GPG ПОДПИСЬ ---
-      - name: Import GPG Key
-        uses: crazy-max/ghaction-import-gpg@v6
-        with:
-          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
-          passphrase: ${{ secrets.GPG_PASSPHRASE }}
-
-      - name: Sign archives with GPG
-        run: |
-          gpg --batch --pinentry-mode loopback --detach-sign --armor florenbot-linux-amd64.tar.gz
-          gpg --batch --pinentry-mode loopback --detach-sign --armor florenbot-linux-arm64.tar.gz
-          gpg --batch --pinentry-mode loopback --detach-sign --armor florenbot-android-aarch64.tar.gz
-          gpg --batch --pinentry-mode loopback --detach-sign --armor florenbot-windows-amd64.zip
-          gpg --batch --pinentry-mode loopback --detach-sign --armor florenbot-windows-amd64-light-sfx.exe
+          path: artifacts
+          merge-splitter: /
+          merge-multiple: true
 
       - name: Create publickey.asc file
         run: |
-          cat << 'EOF' > publickey.asc
+          cat << 'EOF' > artifacts/publickey.asc
           ${{ secrets.GPG_PUBLIC_KEY }}
           EOF
 
-      # --- ПУБЛИКАЦИЯ РЕЛИЗА ---
       - name: Publish Release and Upload Assets
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.tag.outputs.VERSION }}
-          files: |
-            florenbot-linux-amd64.tar.gz
-            florenbot-linux-amd64.tar.gz.asc
-            florenbot-linux-amd64.tar.gz.sha256
-            florenbot-linux-arm64.tar.gz
-            florenbot-linux-arm64.tar.gz.asc
-            florenbot-linux-arm64.tar.gz.sha256
-            florenbot-android-aarch64.tar.gz
-            florenbot-android-aarch64.tar.gz.asc
-            florenbot-android-aarch64.tar.gz.sha256
-            florenbot-windows-amd64.zip
-            florenbot-windows-amd64.zip.asc
-            florenbot-windows-amd64.zip.sha256
-            florenbot-windows-amd64-light-sfx.exe
-            florenbot-windows-amd64-light-sfx.exe.asc
-            florenbot-windows-amd64-light-sfx.exe.sha256
-            publickey.asc
+          tag_name: ${{ needs.prepare.outputs.version }}
+          files: artifacts/*
 
-      # --- ОТПРАВКА УВЕДОМЛЕНИЯ В TELEGRAM БОТ ---
       - name: Send Telegram Notification
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          RELEASE_TAG: ${{ steps.tag.outputs.VERSION }}
-          CUSTOM_MSG: ${{ steps.tag.outputs.CUSTOM_MSG }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.version }}
+          CUSTOM_MSG: ${{ needs.prepare.outputs.custom_msg }}
           REPO_URL: "https://github.com/${{ github.repository }}"
         run: |
           RELEASE_URL="${REPO_URL}/releases/tag/${RELEASE_TAG}"
-          
           DESC_SECTION=""
           if [ -n "$CUSTOM_MSG" ]; then
             DESC_SECTION="%0A%0A📝 **Описание:**%0A${CUSTOM_MSG}"
           fi
 
-          MESSAGE="🔔 **Новое обновление**%0A%0A📦 **Версия:** \`${RELEASE_TAG}\`${DESC_SECTION}%0A%0A🔗 [Смотреть релиз и скачать файлы](${RELEASE_URL})%0A%0AДоступны свежие сборки для Linux (amd64, arm64 для Raspberry Pi), Android (Termux aarch64) и Windows."
+          MESSAGE="🔔 **Новое обновление**%0A%0A📦 **Версия:** \`${RELEASE_TAG}\`${DESC_SECTION}%0A%0A🔗 [Смотреть релиз и скачать файлы](${RELEASE_URL})%0A%0AДоступны свежие сборки для Linux (amd64, arm64), Android Termux (aarch64) и Windows."
           
-          curl -s -X POST "[https://api.telegram.org/bot$](https://api.telegram.org/bot$){TELEGRAM_BOT_TOKEN}/sendMessage" \
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             -d "chat_id=${TELEGRAM_CH_ID:-$TELEGRAM_CHAT_ID}" \
             -d "parse_mode=Markdown" \
             -d "text=${MESSAGE}"
