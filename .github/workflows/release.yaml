@@ -55,17 +55,11 @@ jobs:
           tar -czvf florenbot-linux-amd64.tar.gz florenbot
           rm florenbot
 
-      - name: Build Linux ARM64 (Raspberry Pi) binary
+      - name: Build Linux ARM64 binary
         run: |
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -v -o florenbot-rpi ./bot
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -v -o florenbot ./bot
           tar -czvf florenbot-linux-arm64.tar.gz florenbot-rpi
           rm florenbot-rpi
-
-      - name: Build Android Termux (aarch64) binary
-        run: |
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -v -o florenbot-termux ./bot
-          tar -czvf florenbot-android-aarch64.tar.gz florenbot-termux
-          rm florenbot-termux
 
       - name: Create SHA256 and GPG Signatures
         env:
