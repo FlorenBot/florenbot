@@ -118,29 +118,107 @@ func HandleClan(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 			bot.Send(tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("✅ Клан создан: %s", name)))
 			return
 		}
-	case "getrole":
-		{
-			_, err := helpers.GetUserClanID(user_id)
-			if err != nil {
-				if debug_type {
-					log.Printf("Ошибка получения клана: %v", err)
-				}
-				bot.Send(tgbotapi.NewMessage(message.Chat.ID, "❌ Вы не состоите в клане"))
-				return
-			}
+	case "members":
+        {
+            // 1. Получаем ID клана текущего пользователя
+            clanID, err := helpers.GetUserClanID(user_id)
+            if err != nil {
+                if debug_type {
+                    log.Printf("Ошибка получения клана для members: %v", err)
+                }
+                bot.Send(tgbotapi.NewMessage(message.Chat.ID, "❌ Вы не состоите в клане"))
+                return
+            }
 
-			role, err := helpers.GetUserClanRole(user_id)
-			if err != nil {
-				if debug_type {
-					log.Printf("Ошибка получения клана: %v", err)
-				}
-				bot.Send(tgbotapi.NewMessage(message.Chat.ID, "❌ Что то пошло не так..."))
-				return
-			}
+            // 2. Проверяем аргументы (active / noactive)
+            // parts[0] = "members", parts[1] может быть "active" или "noactive"
+            subArg := "active" // по умолчанию active
+            if len(parts) > 1 {
+                subArg = strings.ToLower(parts[1])
+            }
 
-			bot.Send(tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("✅ Ваша роль в клане: %s", role)))
-			return
-		}
+            // 3. Получаем список участников через новую структуру ClanMember
+            members, err := helpers.GetClanMembersWithDetails(uint64(clanID))
+            if err != nil {
+                log.Printf("[Clan Error] Не удалось получить участников клана для ID %d: %v", clanID, err)
+                bot.Send(tgbotapi.NewMessage(message.Chat.ID, "⚠️ Произошла ошибка при загрузке участников клана."))
+                return
+            }
+
+            // 4. Логика в зависимости от аргумента active / noactive
+            var responseText string
+            
+            switch subArg {
+            case "active":
+                responseText = fmt.Sprintf("👥 **Активные участники клана (всего: %d):**\n\n", len(members))
+                for i, member := range members {
+                    name := member.Username
+                    if name == "" {
+                        name = member.FirstName
+                    }
+                    if name == "" {
+                        name = fmt.Sprintf("ID: %d", member.ID)
+                    }
+                    responseText += fmt.Sprintf("%d. 👤 %s — Баланс: `%.2f` 🪙\n", i+1, name, member.Balance)
+                }
+
+            case "noactive":
+                // Здесь можно реализовать вашу проверку "что то там" 
+                // (например, фильтрация по LastBonusAt или MessageCount)
+                responseText = "💤 **Проверка неактивных участников клана:**\n\n"
+                
+                countNoActive := 0
+                for _, member := range members {
+                    // Пример проверки: если пользователь давно не писал сообщения или не брал бонус
+                    // (Настройте условие под ваши поля, например MessageCount == 0)
+                    if member.MessageCount == 5 { // условно пример проверки
+                        name := member.Username
+                        if name == "" { name = member.FirstName }
+                        responseText += fmt.Sprintf("👤 @%s — мало активен (Сообщений: %d)\n", name, member.MessageCount)
+                        countNoActive++
+                    }
+                }
+                
+                if countNoActive == 0 {
+                    responseText += "✅ Все участники проявляют активность!"
+                }
+
+            default:
+                bot.Send(tgbotapi.NewMessage(message.Chat.ID, "❌ Неверный аргумент! Используйте: `/clan members [active/noactive]`"))
+                return
+            }
+
+            // 5. Отправляем результат в Telegram
+            msg := tgbotapi.NewMessage(message.Chat.ID, responseText)
+            msg.ParseMode = tgbotapi.ModeMarkdown
+            if _, err := bot.Send(msg); err != nil {
+                log.Printf("[Telegram Error] Не удалось отправить список участников: %v", err)
+            }
+            return
+        }
+    case "getrole":
+        {
+            _, err := helpers.GetUserClanID(user_id)
+            if err != nil {
+                if debug_type {
+                    log.Printf("Ошибка получения клана: %v", err)
+                }
+                bot.Send(tgbotapi.NewMessage(message.Chat.ID, "❌ Вы не состоите в клане"))
+                return
+            }
+
+            role, err := helpers.GetUserClanRole(user_id)
+            if err != nil {
+                if debug_type {
+                    log.Printf("Ошибка получения клана: %v", err)
+                }
+                bot.Send(tgbotapi.NewMessage(message.Chat.ID, "❌ Что то пошло не так..."))
+                return
+            }
+
+            bot.Send(tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("✅ Ваша роль в клане: %s", role)))
+            return
+        }
 	case "kick":
 		{
 

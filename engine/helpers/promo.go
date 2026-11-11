@@ -8,6 +8,7 @@ import (
 	"strings"
 	"unicode"
 	"errors"
+	"time"
 )
 
 // ActivateCode обновляет промокод у пользователя
@@ -116,18 +117,44 @@ func GetPromocodesUser(id uint64) ([]structs.UserPromo, error) {
 }
 
 // UpdatePromo обновляет данные промокода (в транзакции)
-func UpdatePromo(code string, amount float64, userID uint64) error {
-	return engine.DB.Transaction(func(tx *gorm.DB) error {
-		// Обновляем промокод
-		if err := tx.Model(&structs.UserPromo{}).Where("owner_id = ?", userID).
-			Updates(map[string]interface{}{"code": code, "amount": int(amount)}).Error; err != nil {
-			return err
-		}
-		// Обновляем у пользователя
-		return tx.Model(&structs.User{}).Where("id = ?", userID).Update("promocode", code).Error
-	})
-}
+// UpdatePromo обновляет данные промокода (в транзакции) с принудительным обновлением времени UpdatedAt
+func UpdatePromo(oldCode string, newCode string, amount float64, userID uint64) error {
+    // Проверка на цифры в новом коде (опционально, если нужно такое же правило, как при создании)
+    isOnlyDigits := true
+    for _, r := range newCode {
+        if !unicode.IsDigit(r) {
+            isOnlyDigits = false
+            break
+        }
+    }
+    if isOnlyDigits {
+        return errors.New("Промокод содержит цифры. Пожалуйста, используйте буквы.")
+    }
 
+    return engine.DB.Transaction(func(tx *gorm.DB) error {
+        // 1. Обновляем промокод в таблице user_promos по owner_id (или старинному коду)
+        // GORM автоматически обновит поле updated_at, если использовать map с UpdatedAt или передать модель/структуру.
+        updateData := map[string]interface{}{
+            "code":       newCode,
+            "amount":     amount,
+            "updated_at": time.Now(), // Явно обновляем дату изменения
+        }
+
+        if err := tx.Model(&structs.UserPromo{}).Where("owner_id = ?", userID).Updates(updateData).Error; err != nil {
+            return err
+        }
+
+        // 2. Обновляем код у самого пользователя в таблице users
+        if err := tx.Model(&structs.User{}).Where("id = ?", userID).Updates(map[string]interface{}{
+            "promocode":  newCode,
+            "updated_at": time.Now(),
+        }).Error; err != nil {
+            return err
+        }
+
+        return nil
+    })
+}
 // GetCode возвращает структуру промокода по его строковому значению
 func GetCode(code string) (*structs.UserPromo, error) {
 	var promo structs.UserPromo

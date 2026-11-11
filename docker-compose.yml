@@ -4,12 +4,10 @@ services:
     container_name: florenbot
     restart: always
     env_file:
-      - .env.docker
+      - .env
     depends_on:
-      mariadb:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - mariadb
+      - redis
     environment:
       BOT_TOKEN: ${BOT_TOKEN}
       DB_HOST: mariadb
@@ -33,24 +31,21 @@ services:
     networks:
       - florenbot
 
-  phpmyadmin:
-    image: phpmyadmin/phpmyadmin
-    container_name: phpmyadmin
+  adminer:
+    image: docker.io/library/adminer:latest
+    container_name: florenbot_adminer
     restart: always
     environment:
-      PMA_HOST: mariadb
-      PMA_PORT: 3306
-      UPLOAD_LIMIT: 300M
+      ADMINER_DEFAULT_SERVER: mariadb
     ports:
-      - "8080:80"
+      - "8080:8080"
     networks:
       - florenbot
     depends_on:
-      mariadb:
-        condition: service_healthy
+      - mariadb
 
   mariadb:
-    image: mariadb:10.11
+    image: docker.io/mariadb:10.11
     container_name: florenbot_mariadb
     restart: always
     environment:
@@ -62,23 +57,12 @@ services:
       - "3306:3306"
     volumes:
       - db_data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 40s
     networks:
       - florenbot
 
   redis:
-    image: redis:alpine
+    image: docker.io/library/redis:alpine
     container_name: florenbot_redis
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
     restart: always
     command: ["redis-server", "--bind", "0.0.0.0", "--requirepass", "${REDIS_PASSWORD}", "--notify-keyspace-events", "Ex"]
     ports:
