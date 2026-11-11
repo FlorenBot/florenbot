@@ -5,7 +5,7 @@
 **Открытый (Open Source) игровой бот на Go для развлечения в групповых чатах и беседах Telegram**
 
 [![License](https://img.shields.io/badge/License-GPL_v3-blue.svg)](LICENSE)
-[![Language](https://img.shields.io/badge/Language-Go_1.22+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+[![Language](https://img.shields.io/badge/Language-Go_1.27+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![Platform](https://img.shields.io/badge/Platform-Telegram-26A5E4?logo=telegram&logoColor=white)](https://core.telegram.org/bots)
 
 ---
