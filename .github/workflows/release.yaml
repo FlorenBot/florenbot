@@ -49,6 +49,30 @@ jobs:
           go-version: '1.26'
           cache: false # Отключаем кэш, чтобы избежать ошибки tar exit code 2
 
+      - name: Create .env file for Linux build
+        env:
+          STANDARD_TOKEN: ${{ secrets.STANDARD_TOKEN }}
+        run: |
+          cat << EOF > ./bot/.env
+          BOT_TOKEN=${{ secrets.STANDARD_TOKEN }}
+          REDIS_ADDR=localhost:6379
+          REDIS_PASSWORD=
+          REDIS_DB=0
+
+          DB_MODE=mysql
+          CACHE_ENGINE=redis
+          DEBUG=false
+
+          DB_HOST=localhost
+          DB_PORT=3306
+          DB_USER=
+          DB_PASSWORD=
+          DB_NAME=
+          DB_ROOT_PASSWORD=
+          DB_SSLMODE=disable
+          EOF
+          echo "[INFO] Full .env template successfully created in ./bot/"
+
       - name: Build Linux amd64 binary
         run: |
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -v -o florenbot ./bot
@@ -200,7 +224,6 @@ jobs:
         run: |
           cd artifacts
           
-          # Генерируем тело релиза
           {
             echo "### 🚀 Что нового"
             MSG="${{ needs.prepare.outputs.custom_msg }}"
@@ -215,7 +238,6 @@ jobs:
             echo "### 📦 Контрольные суммы (SHA-256)"
             echo "\`\`\`text"
             for f in *; do
-              # Считаем хеши только для самих архивов и бинарников (без .sha256 и .asc)
               if [[ "$f" != *.sha256 ]] && [[ "$f" != *.asc ]] && [[ "$f" != publickey.asc ]]; then
                 if [ -f "$f" ]; then
                   sha256sum "$f"

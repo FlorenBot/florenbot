@@ -1,0 +1,301 @@
+name: Build Nightly Release
+
+on:
+  schedule:
+    - cron: '0 3 * * *' # Запуск каждый день в 3:00 ночи по GMT
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Версия ночного релиза (например, nightly-v1.0.0)'
+        required: true
+        default: 'nightly'
+      message:
+        description: 'Описание (что нового) для релиза и ТГ'
+        required: false
+        default: 'Ночная автоматическая сборка бота и обновление стабильности.'
+
+jobs:
+  # --- ОПРЕДЕЛЕНИЕ ТЕГА И ВЕРСИИ ---
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.tag.outputs.VERSION }}
+      custom_msg: ${{ steps.tag.outputs.CUSTOM_MSG }}
+    steps:
+      - name: Get release tag and message
+        id: tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG_INPUT="${{ github.event.inputs.tag }}"
+            if [ "$TAG_INPUT" = "nightly" ]; then
+              VERSION="nightly-$(date +'%Y.%m.%d')"
+            else
+              VERSION="$TAG_INPUT"
+            fi
+            echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+            echo "CUSTOM_MSG=${{ github.event.inputs.message }}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=nightly-$(date +'%Y.%m.%d')" >> $GITHUB_OUTPUT
+            echo "CUSTOM_MSG=Автоматическая ночная сборка по расписанию (GMT)." >> $GITHUB_OUTPUT
+          fi
+
+  # --- СБОРКА ДЛЯ LINUX (AMD64 И ARM64) ---
+  build-unix:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: false
+
+      - name: Create .env file for Linux build
+        env:
+          BOT_TOKEN_NIGHTLY: ${{ secrets.BOT_TOKEN_NIGHTLY }}
+        run: |
+          cat << EOF > ./bot/.env
+          BOT_TOKEN=${{ secrets.BOT_TOKEN_NIGHTLY }}
+          REDIS_ADDR=localhost:6379
+          REDIS_PASSWORD=
+          REDIS_DB=0
+
+          DB_MODE=mysql
+          CACHE_ENGINE=redis
+          DEBUG=false
+
+          DB_HOST=localhost
+          DB_PORT=3306
+          DB_USER=
+          DB_PASSWORD=
+          DB_NAME=
+          DB_ROOT_PASSWORD=
+          DB_SSLMODE=disable
+          EOF
+          echo "[INFO] Full .env template successfully created in ./bot/"
+
+      - name: Build Linux amd64 binary
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -v -o florenbot ./bot
+          tar -czvf florenbot-linux-amd64.tar.gz florenbot
+          rm florenbot
+
+      - name: Build Linux ARM64 binary
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -v -o florenbot ./bot
+          tar -czvf florenbot-linux-arm64.tar.gz florenbot
+          rm florenbot
+
+      - name: Create SHA256 and GPG Signatures
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          sha256sum florenbot-linux-amd64.tar.gz > florenbot-linux-amd64.tar.gz.sha256
+          sha256sum florenbot-linux-arm64.tar.gz > florenbot-linux-arm64.tar.gz.sha256
+
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --import --batch
+          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
+          echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
+          gpg --batch --pinentry-mode loopback --passphrase "${{ secrets.GPG_PASSPHRASE }}" --detach-sign --armor florenbot-linux-amd64.tar.gz
+          gpg --batch --pinentry-mode loopback --passphrase "${{ secrets.GPG_PASSPHRASE }}" --detach-sign --armor florenbot-linux-arm64.tar.gz
+
+      - name: Upload Unix Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: unix-artifacts
+          path: |
+            florenbot-linux-amd64.tar.gz*
+            florenbot-linux-arm64.tar.gz*
+
+  # --- СБОРКА ДЛЯ WINDOWS И ПОДПИСЬ ---
+  build-windows:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: false
+
+      - name: Install 7-Zip and osslsigncode
+        run: |
+          sudo apt-get update && sudo apt-get install -y p7zip-full p7zip-rar osslsigncode
+
+      - name: Build Windows binary
+        run: |
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -v -o florenbot.exe ./bot
+
+      - name: Sign Windows binary
+        run: |
+          echo "${{ secrets.WIN_CERT_BASE64 }}" | base64 --decode > cert.pfx
+          osslsigncode sign \
+            -pkcs12 cert.pfx \
+            -pass "${{ secrets.WIN_CERT_PASSWORD }}" \
+            -n "FlorenBot" \
+            -i "https://github.com/${{ github.repository }}" \
+            -ts "http://timestamp.digicert.com" \
+            -in florenbot.exe \
+            -out florenbot_signed.exe
+          mv florenbot_signed.exe florenbot.exe
+
+      - name: Create Windows Light SFX Archive and ZIP
+        run: |
+          cat << 'EOF' > sfx_config.txt
+          ;!@Install@!UTF-8!
+          Title="FlorenBot Light Setup"
+          BeginPrompt="Запустить установку FlorenBot Light (требуются запущенные Redis и MariaDB)?"
+          RunProgram="floren_setup_env.bat"
+          ;!@InstallEnd@!
+          EOF
+
+          cat << 'EOF' > floren_setup_env.bat
+          @echo off
+          TITLE FlorenBot Light Launcher
+          echo [INFO] Checking environment for FlorenBot...
+          echo [INFO] Note: Ensure MariaDB and Redis services are active locally.
+          if not exist ".env" (
+              echo [WARNING] .env file not found. Creating a template...
+              echo DB_HOST=localhost > .env
+              echo DB_PORT=3306 >> .env
+              echo REDIS_HOST=localhost >> .env
+              echo REDIS_PORT=6379 >> .env
+          )
+          echo [INFO] Starting FlorenBot...
+          start florenbot.exe
+          EOF
+
+          7z a -t7z florenbot_payload.7z florenbot.exe floren_setup_env.bat
+
+          curl -L -o 7z.sfx "https://raw.githubusercontent.com/jinod/p7zip/master/CPP/7zip/UI/Console/7z.sfx" || \
+          curl -L -o 7z.sfx "https://raw.githubusercontent.com/theonlyicecutter/7z-sfx/master/7z.sfx"
+
+          cat 7z.sfx sfx_config.txt florenbot_payload.7z > florenbot-windows-amd64-light-sfx.exe
+
+          sha256sum florenbot.exe > florenbot.exe.sha256
+          zip florenbot-windows-amd64.zip florenbot.exe florenbot.exe.sha256
+          sha256sum florenbot-windows-amd64.zip > florenbot-windows-amd64.zip.sha256
+          sha256sum florenbot-windows-amd64-light-sfx.exe > florenbot-windows-amd64-light-sfx.exe.sha256
+
+      - name: Sign Windows Archives with GPG
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --import --batch
+          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
+          echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
+          gpg --batch --pinentry-mode loopback --passphrase "${{ secrets.GPG_PASSPHRASE }}" --detach-sign --armor florenbot-windows-amd64.zip
+          gpg --batch --pinentry-mode loopback --passphrase "${{ secrets.GPG_PASSPHRASE }}" --detach-sign --armor florenbot-windows-amd64-light-sfx.exe
+
+      - name: Upload Windows Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-artifacts
+          path: |
+            florenbot-windows-amd64.zip*
+            florenbot-windows-amd64-light-sfx.exe*
+
+  # --- ПУБЛИКАЦИЯ РЕЛИЗА И ГЕНЕРАЦИЯ ОПИСАНИЯ ---
+  release:
+    needs: [build-unix, build-windows, prepare]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-splitter: /
+          merge-multiple: true
+
+      - name: Create publickey.asc file
+        run: |
+          cat << 'EOF' > artifacts/publickey.asc
+          ${{ secrets.GPG_PUBLIC_KEY }}
+          EOF
+
+      - name: Generate Release Notes & Checksums
+        id: release-notes
+        run: |
+          cd artifacts
+          
+          {
+            echo "### 🚀 Что нового (Nightly)"
+            MSG="${{ needs.prepare.outputs.custom_msg }}"
+            if [ -n "$MSG" ]; then
+              echo "$MSG"
+            else
+              echo "Автоматическая ночная сборка FlorenBot."
+            fi
+            echo ""
+            echo "---"
+            echo ""
+            echo "### 📦 Контрольные суммы (SHA-256)"
+            echo "\`\`\`text"
+            for f in *; do
+              if [[ "$f" != *.sha256 ]] && [[ "$f" != *.asc ]] && [[ "$f" != publickey.asc ]]; then
+                if [ -f "$f" ]; then
+                  sha256sum "$f"
+                fi
+              fi
+            done
+            echo "\`\`\`"
+            echo ""
+            echo "---"
+            echo ""
+            echo "### 🔒 Как проверить подлинность файлов"
+            echo "1. Импортируйте публичный GPG ключ разработчика:"
+            echo "\`\`\`bash"
+            echo "gpg --import publickey.asc"
+            echo "\`\`\`"
+            echo "2. Проверьте цифровую подпись архива (.asc):"
+            echo "\`\`\`bash"
+            echo "gpg --verify <имя_файла>.tar.gz.asc <имя_файла>.tar.gz"
+            echo "\`\`\`"
+            echo "3. Либо сверьте SHA-256 хеш вручную:"
+            echo "\`\`\`bash"
+            echo "sha256sum -c <имя_файла>.tar.gz.sha256"
+            echo "\`\`\`"
+          } > ../release_body.md
+          
+          cat ../release_body.md
+
+      - name: Publish Release and Upload Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.version }}
+          name: "Nightly Build ${{ needs.prepare.outputs.version }}"
+          prerelease: true
+          body_path: release_body.md
+          files: artifacts/*
+
+      - name: Send Telegram Notification
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.version }}
+          CUSTOM_MSG: ${{ needs.prepare.outputs.custom_msg }}
+          REPO_URL: "https://github.com/${{ github.repository }}"
+        run: |
+          RELEASE_URL="${REPO_URL}/releases/tag/${RELEASE_TAG}"
+          DESC_SECTION=""
+          if [ -n "$CUSTOM_MSG" ]; then
+            DESC_SECTION="%0A%0A📝 **Описание:**%0A${CUSTOM_MSG}"
+          fi
+
+          MESSAGE="🌙 **Ночной релиз FlorenBot (GMT)**%0A%0A📦 **Версия:** \`${RELEASE_TAG}\`${DESC_SECTION}\%0A\%0A🔗 [Смотреть релиз и файлы](${RELEASE_URL})"
+          
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CH_ID:-$TELEGRAM_CHAT_ID}" \
+            -d "parse_mode=Markdown" \
+            -d "text=${MESSAGE}"
