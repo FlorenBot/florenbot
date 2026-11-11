@@ -339,54 +339,53 @@ func HandlePromo(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 		msg.ParseMode = "Markdown"
 		bot.Send(msg)
 	case "edit":
-		{
-			user_id := uint64(message.From.ID)
-			_, err := helpers.GetUserByID(user_id)
-			if err != nil {
-				bot.Send(tgbotapi.NewMessage(message.Chat.ID, "❌ Вы не авторизованы"))
-				return
-			}
+        {
+            user_id := uint64(message.From.ID)
+            _, err := helpers.GetUserByID(user_id)
+            if err != nil {
+                bot.Send(tgbotapi.NewMessage(message.Chat.ID, "❌ Вы не авторизованы"))
+                return
+            }
 
-			args := message.CommandArguments()
-			parts := strings.Fields(args)
+            args := message.CommandArguments()
+            parts := strings.Fields(args)
 
-			// Учитываем, что parts[0] - подкоманда "edit", если CommandArguments возвращает [edit code amount]
-			if len(parts) < 3 {
-				bot.Send(tgbotapi.NewMessage(message.Chat.ID, "❌ Неверный формат! Используйте: `/promo edit [код] [сумма]`"))
-				return
-			}
+            if len(parts) < 3 {
+                bot.Send(tgbotapi.NewMessage(message.Chat.ID, "❌ Неверный формат! Используйте: `/promo edit [код] [сумма]`"))
+                return
+            }
 
-			code := parts[1]
-			amount, err := strconv.ParseFloat(parts[2], 64)
-			if err != nil {
-				bot.Send(tgbotapi.NewMessage(message.Chat.ID, "❌ Ошибка: сумма должна быть числом"))
-				return
-			}
+            code := parts[1]
+            amount, err := strconv.ParseFloat(parts[2], 64)
+            if err != nil {
+                bot.Send(tgbotapi.NewMessage(message.Chat.ID, "❌ Ошибка: сумма должна быть числом"))
+                return
+            }
 
-			// Проверка владельца: получаем структуру кода из БД
-			promo, err := helpers.GetCode(code) // Предполагается, что функция возвращает структуру с OwnerID
-			if err != nil {
-				bot.Send(tgbotapi.NewMessage(message.Chat.ID, "❌ Промокод не найден"))
-				return
-			}
+            // Проверка владельца: получаем структуру кода из БД
+            promo, err := helpers.GetCode(code)
+            if err != nil {
+                bot.Send(tgbotapi.NewMessage(message.Chat.ID, "❌ Промокод не найден"))
+                return
+            }
 
-			// СРАВНИВАЕМ ВЛАДЕЛЬЦА
-			if uint64(promo.OwnerID) != user_id {
-				bot.Send(tgbotapi.NewMessage(message.Chat.ID, "❌ Вы не владелец этого промокода"))
-				return
-			}
+            // СРАВНИВАЕМ ВЛАДЕЛЬЦА
+            if uint64(promo.OwnerID) != user_id {
+                bot.Send(tgbotapi.NewMessage(message.Chat.ID, "❌ Вы не владелец этого промокода"))
+                return
+            }
 
-			// Обновляем БД
-			err = helpers.UpdatePromo(code, amount, user_id)
-			if err != nil {
-				bot.Send(tgbotapi.NewMessage(message.Chat.ID, "❌ Ошибка при обновлении"))
-				return
-			}
+            // Обновляем БД (передаем code как старый и новый, так как текст мы не меняем, а обновляем сумму)
+            err = helpers.UpdatePromo(code, code, amount, user_id)
+            if err != nil {
+                bot.Send(tgbotapi.NewMessage(message.Chat.ID, "❌ Ошибка при обновлении"))
+                return
+            }
 
-			msg := tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("✅ Промокод *%s* обновлен!\nНовая сумма: *%.2f*", code, amount))
-			msg.ParseMode = "Markdown"
-			bot.Send(msg)
-		}
+            msg := tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("✅ Промокод *%s* обновлен!\nНовая сумма: *%.2f*", code, amount))
+            msg.ParseMode = "Markdown"
+            bot.Send(msg)
+        }
 	case "expire":
 		{
 			// 1. Проверка пользователя
@@ -544,39 +543,60 @@ func HandlePromo(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 			bot.Send(msg)
 		}
 
+	
 	case "stats":
-		count, err := helpers.GetPromocodesMemberCount()
-		if err != nil {
-			if debug_type {
-				log.Printf("Ошибка при получении количества участников промокодов: %v", err)
-			}
-			bot.Send(tgbotapi.NewMessage(message.Chat.ID, "❌ Ошибка при получении статистики"))
-			return
-		}
+        // 1. Получаем все промокоды из таблицы UserPromo
+        var promos []structs.UserPromo
+        if err := engine.DB.Find(&promos).Error; err != nil {
+            if debug_type {
+                log.Printf("Ошибка при получении промокодов: %v", err)
+            }
+            bot.Send(tgbotapi.NewMessage(message.Chat.ID, "❌ Ошибка при получении статистики"))
+            return
+        }
 
-		if len(count) == 0 {
-			bot.Send(tgbotapi.NewMessage(message.Chat.ID, "❌ Нет активных промокодов"))
-			return
-		}
+        if len(promos) == 0 {
+            bot.Send(tgbotapi.NewMessage(message.Chat.ID, "❌ Нет активных промокодов"))
+            return
+        }
 
-		var report strings.Builder
-		report.WriteString("📊 **Статистика промокодов**\n\n")
-		report.WriteString("```\n")
-		report.WriteString(fmt.Sprintf("%-12s | %-10s\n", "Промокод", "Участники"))
-		report.WriteString("---------------------------\n")
+        var report strings.Builder
+        report.WriteString("📊 **Статистика промокодов**\n\n")
+        report.WriteString("```text\n")
+        // Шапка таблицы (с фиксированной шириной колонок)
+        report.WriteString(fmt.Sprintf("%-10s | %-8s | %-10s | %-10s\n", "Код", "Юзеров", "Создан", "Обновлен"))
+        report.WriteString("-----------------------------------------\n")
 
-		for code, num := range count {
-			displayCode := code
-			if displayCode == "" {
-				displayCode = "N/A"
-			}
-			report.WriteString(fmt.Sprintf("%-12s | %-10d\n", displayCode, num))
-		}
-		report.WriteString("```")
+        for _, promo := range promos {
+            cleanCode := strings.TrimSpace(promo.Code)
+            if cleanCode == "" {
+                continue
+            }
 
-		msg := tgbotapi.NewMessage(message.Chat.ID, report.String())
-		msg.ParseMode = "Markdown"
-		bot.Send(msg)
+            // Считаем количество пользователей с этим промокодом
+            var num int64
+            engine.DB.Model(&structs.User{}).Where("promocode = ?", cleanCode).Count(&num)
+
+            // Форматируем даты (берем только дату без часов для компактности в таблице)
+            createdAtStr := "N/A"
+            if !promo.CreatedAt.IsZero() {
+                createdAtStr = promo.CreatedAt.Format("02.01.2006")
+            }
+
+            updatedAtStr := "-"
+            if !promo.UpdatedAt.IsZero() && promo.UpdatedAt.After(promo.CreatedAt) {
+                updatedAtStr = promo.UpdatedAt.Format("02.01.2006")
+            }
+
+            // До строку в таблицу
+            report.WriteString(fmt.Sprintf("%-10s | %-8d | %-10s | %-10s\n", cleanCode, num, createdAtStr, updatedAtStr))
+        }
+        report.WriteString("```")
+
+        msg := tgbotapi.NewMessage(message.Chat.ID, report.String())
+        msg.ParseMode = "Markdown"
+        bot.Send(msg)
+        return
 	default:
 		bot.Send(tgbotapi.NewMessage(message.Chat.ID, "❌ Неизвестное действие\nВсе действия: "+strings.Join(availableActions[:], ", ")))
 	}

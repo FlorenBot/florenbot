@@ -93,6 +93,38 @@ func GetUserClanRole(userID uint64) (string, error) {
 	err := engine.DB.Select("role").Where("user_id = ?", userID).First(&member).Error
 	return member.Role, err
 }
+// GetClanMembers возвращает список пользователей, состоящих в клане с указанным ID
+func GetClanMembers(clanID uint64) ([]structs.User, error) {
+    var members []structs.User
+    
+    // Ищем всех пользователей, у которых ClanID равен переданному clanID
+    err := engine.DB.Where("clan_id = ?", clanID).Find(&members).Error
+    if err != nil {
+        return nil, err
+    }
+    
+    return members, nil
+}
+
+func GetClanMembersWithDetails(clanID uint64) ([]structs.User, error) {
+    var clanMembers []structs.ClanMember
+    
+    // 1. Находим все связи ClanMember для данного клана и подтягиваем связанные данные User
+    err := engine.DB.Preload("User").Where("clan_id = ?", clanID).Find(&clanMembers).Error
+    if err != nil {
+        return nil, err
+    }
+
+    // 2. Извлекаем структуру User из каждой связи в срез []structs.User
+    var users []structs.User
+    for _, cm := range clanMembers {
+        users = append(users, cm.User)
+    }
+
+    return users, nil
+}
+
+
 
 func GetClanMemberCount(clanID uint64) (int64, error) {
 	var count int64

@@ -21,6 +21,9 @@ type UserPromo struct {
 	// CreatedAt — время создания записи (GORM заполняет автоматически)
 	CreatedAt time.Time `json:"created_at"`
 
+	// UpdatedAt - время обновления записи
+	UpdatedAt time.Time `json:"updated_at"`
+
 	// ExpiresAt — время истечения активности промокода
 	ExpiresAt time.Time `gorm:"null;column:expires_at" json:"expires_at"`
 
