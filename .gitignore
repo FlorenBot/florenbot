@@ -41,3 +41,4 @@ summ/*
 for_docker
 assets
 test
+*.sh
