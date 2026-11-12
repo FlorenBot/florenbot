@@ -13,10 +13,7 @@ import (
 
 	"florenbot/bones"
 	"florenbot/consts"
-	cache "florenbot/engine/cache"
-	helper "florenbot/engine/helpers"
-	engine "florenbot/engine/mysql"
-	structs "florenbot/engine/structs"
+	services "florenbot/services"
 	helpers "florenbot/helpers"
 	"florenbot/handlers"
 	admin_handlers "florenbot/handlers/admin"
@@ -54,10 +51,18 @@ func main() {
 
 	log.Printf("ОС: %s, Архитектура: %s", runtime.GOOS, runtime.GOARCH)
 
+	// 2. Читаем BACKEND_URI из окружения
+	backendURI := os.Getenv("BACKEND_URI")
+	if backendURI == "" {
+		log.Fatal("❌ Ошибка: переменная окружения BACKEND_URI не задана в .env")
+	}
+
+	// 3. Инициализируем наш HTTP-сервис с полученным URL
+	apiClient := services.NewHTTPService(backendURI, 5*time.Second)
+	apiClient.SetHeader("User-Agent", "Go-HTTP-Client")
+
 	time.Sleep(4 * time.Second)
 
-	engine.ConnectDB()
-	cache.InitCache()
 	go workers.RunPromoCleanupWorker()
 	go workers.ClanRemoveInviteCodeWorker()
 
@@ -106,11 +111,10 @@ func main() {
 			}
 
 			if update.Message.NewChatMembers != nil {
-				handleNewMembers(bot, update)
+				// handleNewMembers(bot, update)
 				continue
 			}
 
-			go helper.IncrementMessageCount(uint64(update.Message.From.ID), update.Message.From.UserName, update.Message.From.FirstName)
 
 			handleMessage(bot, update.Message)
 		}
@@ -118,8 +122,6 @@ func main() {
 
 	<-quit
 	log.Println("🛑 Останавливаю бота...")
-	engine.CloseDB()
-	cache.ShutdownCache()
 }
 
 func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
@@ -144,23 +146,23 @@ func handleCommands(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	}
 
 	command := strings.ToLower(parts[0][1:])
-	userID := uint64(message.From.ID)
-	chatID := uint64(message.Chat.ID)
-	parsed_chat_id := helpers.ParseChatID(uint64(chatID))
+	// userID := uint64(message.From.ID)
+	// chatID := uint64(message.Chat.ID)
+	// parsed_chat_id := helpers.ParseChatID(uint64(chatID))
 
 	// ПРОВЕРКА ОГРАНИЧЕНИЙ
-	result, err := helper.IsCommandRestricted(userID, uint64(parsed_chat_id), command)
-	log.Printf("DEBUG: [IsCommandRestricted] Result: %v", result)
-	log.Printf("DEBUG: [IsCommandRestricted] Error: %v", err)
+	// result, err := helper.IsCommandRestricted(userID, uint64(parsed_chat_id), command)
+	// log.Printf("DEBUG: [IsCommandRestricted] Result: %v", result)
+	// log.Printf("DEBUG: [IsCommandRestricted] Error: %v", err)
 
-	if err != nil {
-		log.Printf("DEBUG: [IsCommandRestricted] Ошибка БД: %v", err)
-	}
+	// if err != nil {
+	// 	log.Printf("DEBUG: [IsCommandRestricted] Ошибка БД: %v", err)
+	// }
 
-	if result {
-		bot.Send(tgbotapi.NewMessage(int64(chatID), "🚫 Вам запрещено использовать эту команду. Обратитесь к администрации чата."))
-		return
-	}
+	// if result {
+	// 	bot.Send(tgbotapi.NewMessage(int64(chatID), "🚫 Вам запрещено использовать эту команду. Обратитесь к администрации чата."))
+	// 	return
+	// }
 
 	switch command {
 	case "start":
@@ -256,43 +258,43 @@ func handleCommands(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	}
 }
 
-func handleNewMembers(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
-	for _, newUser := range update.Message.NewChatMembers {
-		user_id := uint64(newUser.ID)
-		chat_id := uint64(update.Message.Chat.ID)
+// func handleNewMembers(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
+// 	for _, newUser := range update.Message.NewChatMembers {
+// 		user_id := uint64(newUser.ID)
+// 		chat_id := uint64(update.Message.Chat.ID)
 
-		// 1. Проверяем бан
-		isBanned := helper.IsUserBanned(user_id)
-		if isBanned {
-			bot.Request(tgbotapi.BanChatMemberConfig{
-				ChatMemberConfig: tgbotapi.ChatMemberConfig{
-					ChatID: int64(chat_id),
-					UserID: int64(user_id),
-				},
-			})
-			continue
-		}
+// 		// 1. Проверяем бан
+// 		isBanned := helper.IsUserBanned(user_id)
+// 		if isBanned {
+// 			bot.Request(tgbotapi.BanChatMemberConfig{
+// 				ChatMemberConfig: tgbotapi.ChatMemberConfig{
+// 					ChatID: int64(chat_id),
+// 					UserID: int64(user_id),
+// 				},
+// 			})
+// 			continue
+// 		}
 
-		// 2. Добавляем или обновляем пользователя в таблице users
-		user := structs.User{
-			ID:        user_id,
-			FirstName: newUser.FirstName,
-			Username:  newUser.UserName,
-		}
-		engine.DB.Save(&user)
+// 		// 2. Добавляем или обновляем пользователя в таблице users
+// 		user := structs.User{
+// 			ID:        user_id,
+// 			FirstName: newUser.FirstName,
+// 			Username:  newUser.UserName,
+// 		}
+// 		engine.DB.Save(&user)
 
-		// 3. Добавляем запись в таблицу members
-		member := structs.Member{
-			ChatID: chat_id,
-			UserID: user_id,
-			RoleID: 2,
-		}
+// 		// 3. Добавляем запись в таблицу members
+// 		member := structs.Member{
+// 			ChatID: chat_id,
+// 			UserID: user_id,
+// 			RoleID: 2,
+// 		}
 
-		err := engine.DB.Where(structs.Member{ChatID: chat_id, UserID: user_id}).
-			FirstOrCreate(&member).Error
+// 		err := engine.DB.Where(structs.Member{ChatID: chat_id, UserID: user_id}).
+// 			FirstOrCreate(&member).Error
 
-		if err != nil {
-			log.Printf("Ошибка добавления пользователя в таблицу members: %v", err)
-		}
-	}
-}
+// 		if err != nil {
+// 			log.Printf("Ошибка добавления пользователя в таблицу members: %v", err)
+// 		}
+// 	}
+// }
