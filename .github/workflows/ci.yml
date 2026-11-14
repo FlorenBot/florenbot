@@ -41,6 +41,7 @@ jobs:
             Проверьте логи GitHub Actions для подробной информации.
 
   # 2. Проверка секретов в коде (Secret Scanning)
+    # 2. Проверка секретов в коде (Secret Scanning)
   security:
     name: Secret Scan (Gitleaks)
     runs-on: ubuntu-latest
@@ -50,12 +51,19 @@ jobs:
         with:
           fetch-depth: 0 # Полная история для качественного сканирования
 
-      - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@v2
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.0'
+
+      - name: Run Gitleaks CLI
         id: gitleaks
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_LICENSE: ""
+        run: |
+          # Устанавливаем официальный Gitleaks напрямую через go install, обходя платные ограничения экшена
+          go install github.com/gitleaks/gitleaks/v8@latest
+          
+          # Запускаем сканирование репозитория
+          $(go env GOPATH)/bin/gitleaks detect --source="." --verbose --redact
 
       - name: Notify Telegram if Secrets Found
         if: failure() && steps.gitleaks.outcome == 'failure'
@@ -70,6 +78,7 @@ jobs:
             
             Найдены потенциальные утечки чувствительных данных. Срочно проверьте кодовую базу!
 
+            
   # 3. Тестирование кода
   test:
     name: Run Go Tests
