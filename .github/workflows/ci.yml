@@ -115,7 +115,7 @@ jobs:
           to: ${{ secrets.TELEGRAM_USER_ID }}
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           message: |
-            ✅ **Все готово! CI-пайплайн успешно выполнен без ошибок.**
+            ✅ **Все в порядке! CI-пайплайн успешно выполнен без ошибок.**
             📦 Репозиторий: ${{ github.repository }}
             🌿 Ветка: ${{ github.ref_name }}
             👤 Автор: ${{ github.actor }}
