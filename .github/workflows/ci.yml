@@ -1,0 +1,119 @@
+name: Go CI & Security Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch: # Добавляет кнопку ручного запуска ("Run workflow") в интерфейсе GitHub Actions
+
+jobs:
+  # 1. Проверка синтаксиса и статический анализ (go vet)
+  lint:
+    name: Go Vet & Syntax Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.0'
+
+      - name: Run go vet
+        id: govets
+        run: go vet ./...
+
+      - name: Send Telegram Notification on Syntax/Vet Error
+        if: failure() && steps.govets.outcome == 'failure'
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_USER_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: |
+            ❌ **Ошибка синтаксиса или верификации (go vet) в Go коде!**
+            📦 Репозиторий: ${{ github.repository }}
+            🌿 Ветка: ${{ github.ref_name }}
+            👤 Автор: ${{ github.actor }}
+            🔗 Коммит: https://github.com/${{ github.repository }}/commit/${{ github.sha }}
+            
+            Проверьте логи GitHub Actions для подробной информации.
+
+  # 2. Проверка секретов в коде (Secret Scanning)
+  security:
+    name: Secret Scan (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Полная история для качественного сканирования
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        id: gitleaks
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ""
+
+      - name: Notify Telegram if Secrets Found
+        if: failure() && steps.gitleaks.outcome == 'failure'
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_USER_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: |
+            🚨 **ВНИМАНИЕ! В репозитории обнаружены секреты (API ключи/пароли)!**
+            📦 Репозиторий: ${{ github.repository }}
+            🌿 Ветка: ${{ github.ref_name }}
+            
+            Найдены потенциальные утечки чувствительных данных. Срочно проверьте кодовую базу!
+
+  # 3. Тестирование кода
+  test:
+    name: Run Go Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.0'
+
+      - name: Run Go Tests with Race Detector
+        id: gotest
+        run: go test -v -race -coverprofile=coverage.out ./...
+
+      - name: Notify Telegram on Test Failure
+        if: failure() && steps.gotest.outcome == 'failure'
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_USER_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: |
+            💥 **Тесты Go завершились с ошибкой!**
+            📦 Репозиторий: ${{ github.repository }}
+            🌿 Ветка: ${{ github.ref_name }}
+            🔗 Коммит: https://github.com/${{ github.repository }}/commit/${{ github.sha }}
+
+  # 4. Уведомление в Telegram об успешном прохождении всех проверок
+  notify_success:
+    name: Telegram Success Notification
+    needs: [lint, security, test]
+    runs-on: ubuntu-latest
+    if: success()
+    steps:
+      - name: Send Success Message
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_USER_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: |
+            ✅ **Все готово! CI-пайплайн успешно выполнен без ошибок.**
+            📦 Репозиторий: ${{ github.repository }}
+            🌿 Ветка: ${{ github.ref_name }}
+            👤 Автор: ${{ github.actor }}
+            🔗 Коммит: https://github.com/${{ github.repository }}/commit/${{ github.sha }}
