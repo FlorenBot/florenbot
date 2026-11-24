@@ -5,22 +5,21 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
-	"log"
-	"errors"
 	"strings"
 	"time"
 
-
-	checks "florenbot/backend/checks"
+	"florenbot/backend/checks"
 	"florenbot/backend/engine/cache"
 	"florenbot/backend/engine/helpers"
-	"gorm.io/gorm"
-
+	"florenbot/backend/engine/mysql"
 	backend_structs "florenbot/backend/engine/structs"
 	"florenbot/services"
+	"gorm.io/gorm"
 )
 
 type StandardHandler struct {
@@ -93,6 +92,22 @@ type vipRequest struct {
 	UserID uint64 `json:"user_id" example:"123456789"`
 }
 
+func isStdHandlerDebug() bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv("DEBUG")))
+	return v == "1" || v == "true" || v == "yes"
+}
+
+func isRecordNotFoundErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return true
+	}
+	low := strings.ToLower(err.Error())
+	return strings.Contains(low, "not found") || strings.Contains(low, "не найден")
+}
+
 func writeStandardJSON(w http.ResponseWriter, status int, payload standardAPIResponse) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
@@ -100,7 +115,7 @@ func writeStandardJSON(w http.ResponseWriter, status int, payload standardAPIRes
 }
 
 func getBotSignatureSecret() string {
-	for _, key := range []string{"INTERNAL_API_SECRET", "API_SIGNATURE_SECRET"} {
+	for _, key := range []string{"APP_KEY", "INTERNAL_API_SECRET", "API_SIGNATURE_SECRET"} {
 		if val := strings.TrimSpace(os.Getenv(key)); val != "" {
 			return val
 		}
@@ -139,6 +154,14 @@ func signStandardRequest(req *http.Request, body []byte) {
 // @Failure 400 {object} standardAPIResponse
 // @Router /api/v1/standard/help-context [get]
 func (h *StandardHandler) HelpContext(w http.ResponseWriter, r *http.Request) {
+	dbg := isStdHandlerDebug()
+	rawUserID := strings.TrimSpace(r.URL.Query().Get("user_id"))
+	rawChatID := strings.TrimSpace(r.URL.Query().Get("chat_id"))
+
+	if dbg {
+		log.Printf("[DEBUG][HELP_CONTEXT] user_id=%q, chat_id=%q", rawUserID, rawChatID)
+	}
+
 	writeStandardJSON(w, http.StatusOK, standardAPIResponse{
 		OK: true,
 		Data: &standardDataPayload{
@@ -161,8 +184,12 @@ func (h *StandardHandler) HelpContext(w http.ResponseWriter, r *http.Request) {
 // @Router /api/v1/standard/profile/init [post]
 func (h *StandardHandler) ProfileInit(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
+	dbg := isStdHandlerDebug()
 
 	if err := checks.VerifyRequest(r); err != nil {
+		if dbg {
+			log.Printf("[DEBUG][PROFILE_INIT] Ошибка подписи: %v", err)
+		}
 		writeStandardJSON(w, http.StatusUnauthorized, standardAPIResponse{
 			OK:    false,
 			Code:  "INVALID_SIGNATURE",
@@ -180,15 +207,18 @@ func (h *StandardHandler) ProfileInit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dbg := isDebugEnabled()
 	username := strings.TrimSpace(req.Username)
 	firstName := strings.TrimSpace(req.FirstName)
 
+	if dbg {
+		log.Printf("[DEBUG][PROFILE_INIT] Запрос для user_id=%d, username=%q, first_name=%q", req.UserID, username, firstName)
+	}
+
 	userProfile, err := helpers.GetUserByID(req.UserID)
 	if err != nil {
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
+		if !isRecordNotFoundErr(err) {
 			if dbg {
-				log.Printf("[DEBUG][PROFILE_INIT] Ошибка получения пользователя %d из БД: %v", req.UserID, err)
+				log.Printf("[DEBUG][PROFILE_INIT] Ошибка чтения из БД user_id=%d: %v", req.UserID, err)
 			}
 			writeStandardJSON(w, http.StatusInternalServerError, standardAPIResponse{
 				OK:    false,
@@ -197,17 +227,17 @@ func (h *StandardHandler) ProfileInit(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		if dbg {
+			log.Printf("[DEBUG][PROFILE_INIT] Пользователь %d не найден в БД (%v), создаём...", req.UserID, err)
+		}
 		userProfile = backend_structs.User{}
 	}
 
 	if userProfile.ID == 0 {
-		if dbg {
-			log.Printf("[DEBUG][PROFILE_INIT] Пользователь %d (%s) не найден, создаём...", req.UserID, firstName)
-		}
 		createdUser, createErr := helpers.CreateUser(req.UserID, username, firstName)
 		if createErr != nil {
 			if dbg {
-				log.Printf("[DEBUG][PROFILE_INIT] Ошибка создания пользователя %d: %v", req.UserID, createErr)
+				log.Printf("[DEBUG][PROFILE_INIT] Ошибка создания user_id=%d: %v", req.UserID, createErr)
 			}
 			writeStandardJSON(w, http.StatusInternalServerError, standardAPIResponse{
 				OK:    false,
@@ -218,15 +248,14 @@ func (h *StandardHandler) ProfileInit(w http.ResponseWriter, r *http.Request) {
 		}
 		userProfile = createdUser
 		if dbg {
-			log.Printf("[DEBUG][PROFILE_INIT] Пользователь создан: %+v", userProfile)
+			log.Printf("[DEBUG][PROFILE_INIT] Создан пользователь: %+v", userProfile)
 		}
 	} else if dbg {
-		log.Printf("[DEBUG][PROFILE_INIT] Пользователь %d найден: %+v", req.UserID, userProfile)
+		log.Printf("[DEBUG][PROFILE_INIT] Найден пользователь в БД: %+v", userProfile)
 	}
 
-	if bal, balErr := cache.GetBalance(req.UserID, username); balErr == nil {
-		userProfile.Balance = bal
-	}
+	// Синхронизируем баланс в кэше актуальным значением из БД
+	cache.SetCache("user_"+strconv.FormatUint(req.UserID, 10)+"_balance", strconv.FormatFloat(userProfile.Balance, 'f', 2, 64), 24*time.Hour)
 
 	writeStandardJSON(w, http.StatusOK, standardAPIResponse{
 		OK: true,
@@ -320,9 +349,26 @@ func (h *StandardHandler) ToggleOrClaimVIP(w http.ResponseWriter, r *http.Reques
 // @Success 200 {object} standardAPIResponse
 // @Router /api/v1/standard/top/balance [get]
 func (h *StandardHandler) TopBalance(w http.ResponseWriter, r *http.Request) {
+	dbg := isStdHandlerDebug()
+	limit := 10
+	if rawLimit := strings.TrimSpace(r.URL.Query().Get("limit")); rawLimit != "" {
+		if parsed, err := strconv.Atoi(rawLimit); err == nil && parsed > 0 && parsed <= 100 {
+			limit = parsed
+		}
+	}
+
+	var users []backend_structs.User
+	if mysql.DB != nil {
+		if err := mysql.DB.Order("balance DESC").Limit(limit).Find(&users).Error; err != nil && dbg {
+			log.Printf("[DEBUG][TOP_BALANCE] Ошибка запроса топа баланса: %v", err)
+		}
+	}
+
 	writeStandardJSON(w, http.StatusOK, standardAPIResponse{
-		OK:   true,
-		Data: &standardDataPayload{},
+		OK: true,
+		Data: &standardDataPayload{
+			Users: users,
+		},
 	})
 }
 
@@ -335,22 +381,42 @@ func (h *StandardHandler) TopBalance(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} standardAPIResponse
 // @Router /api/v1/standard/top/messages [get]
 func (h *StandardHandler) TopMessages(w http.ResponseWriter, r *http.Request) {
+	dbg := isStdHandlerDebug()
+	limit := 10
+	if rawLimit := strings.TrimSpace(r.URL.Query().Get("limit")); rawLimit != "" {
+		if parsed, err := strconv.Atoi(rawLimit); err == nil && parsed > 0 && parsed <= 100 {
+			limit = parsed
+		}
+	}
+
+	var users []backend_structs.User
+	if mysql.DB != nil {
+		if err := mysql.DB.Order("message_count DESC").Limit(limit).Find(&users).Error; err != nil && dbg {
+			log.Printf("[DEBUG][TOP_MESSAGES] Ошибка запроса топа сообщений: %v", err)
+		}
+	}
+
 	writeStandardJSON(w, http.StatusOK, standardAPIResponse{
-		OK:   true,
-		Data: &standardDataPayload{},
+		OK: true,
+		Data: &standardDataPayload{
+			Users: users,
+		},
 	})
 }
 
 // GetBalance godoc
 // @Summary Баланс пользователя
-// @Description Возвращает текущий баланс пользователя
+// @Description Возвращает текущий баланс пользователя напрямую из БД
 // @Tags standard
 // @Produce json
 // @Param user_id query int true "ID пользователя"
 // @Success 200 {object} standardAPIResponse
 // @Failure 400 {object} standardAPIResponse
+// @Failure 404 {object} standardAPIResponse
+// @Failure 500 {object} standardAPIResponse
 // @Router /api/v1/standard/balance [get]
 func (h *StandardHandler) GetBalance(w http.ResponseWriter, r *http.Request) {
+	dbg := isStdHandlerDebug()
 	rawID := strings.TrimSpace(r.URL.Query().Get("user_id"))
 	if rawID == "" {
 		writeStandardJSON(w, http.StatusBadRequest, standardAPIResponse{
@@ -360,15 +426,61 @@ func (h *StandardHandler) GetBalance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userID, err := strconv.ParseUint(rawID, 10, 64)
+	if err != nil || userID == 0 {
+		writeStandardJSON(w, http.StatusBadRequest, standardAPIResponse{
+			OK:    false,
+			Error: "invalid user_id",
+		})
+		return
+	}
+
+	if dbg {
+		log.Printf("[DEBUG][GET_BALANCE] Чтение баланса из БД для user_id=%d", userID)
+	}
+
+	userProfile, err := helpers.GetUserByID(userID)
+	if err != nil {
+		if isRecordNotFoundErr(err) {
+			if dbg {
+				log.Printf("[DEBUG][GET_BALANCE] Пользователь %d не найден: %v", userID, err)
+			}
+			writeStandardJSON(w, http.StatusNotFound, standardAPIResponse{
+				OK:    false,
+				Code:  "USER_NOT_FOUND",
+				Error: "user not found",
+			})
+			return
+		}
+		if dbg {
+			log.Printf("[DEBUG][GET_BALANCE] Ошибка БД при получении баланса user_id=%d: %v", userID, err)
+		}
+		writeStandardJSON(w, http.StatusInternalServerError, standardAPIResponse{
+			OK:    false,
+			Code:  "DB_ERROR",
+			Error: "failed to load user balance from database",
+		})
+		return
+	}
+
+	if dbg {
+		log.Printf("[DEBUG][GET_BALANCE] Баланс из БД для user_id=%d: %.2f", userID, userProfile.Balance)
+	}
+
+	cache.SetCache("user_"+strconv.FormatUint(userID, 10)+"_balance", strconv.FormatFloat(userProfile.Balance, 'f', 2, 64), 24*time.Hour)
+
 	writeStandardJSON(w, http.StatusOK, standardAPIResponse{
-		OK:   true,
-		Data: &standardDataPayload{},
+		OK: true,
+		Data: &standardDataPayload{
+			NewBalance: userProfile.Balance,
+			Profile:    userProfile,
+		},
 	})
 }
 
 // GetProfile godoc
 // @Summary Профиль пользователя
-// @Description Возвращает подробный профиль пользователя и данные чата
+// @Description Возвращает подробный профиль пользователя и данные чата из БД
 // @Tags standard
 // @Produce json
 // @Param user_id query int true "ID пользователя"
@@ -378,8 +490,11 @@ func (h *StandardHandler) GetBalance(w http.ResponseWriter, r *http.Request) {
 // @Param first_name query string false "Имя пользователя"
 // @Success 200 {object} standardAPIResponse
 // @Failure 400 {object} standardAPIResponse
+// @Failure 404 {object} standardAPIResponse
+// @Failure 500 {object} standardAPIResponse
 // @Router /api/v1/standard/profile [get]
 func (h *StandardHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
+	dbg := isStdHandlerDebug()
 	rawID := strings.TrimSpace(r.URL.Query().Get("user_id"))
 	if rawID == "" {
 		writeStandardJSON(w, http.StatusBadRequest, standardAPIResponse{
@@ -389,8 +504,51 @@ func (h *StandardHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userID, err := strconv.ParseUint(rawID, 10, 64)
+	if err != nil || userID == 0 {
+		writeStandardJSON(w, http.StatusBadRequest, standardAPIResponse{
+			OK:    false,
+			Error: "invalid user_id",
+		})
+		return
+	}
+
+	if dbg {
+		log.Printf("[DEBUG][GET_PROFILE] Чтение профиля из БД для user_id=%d", userID)
+	}
+
+	userProfile, err := helpers.GetUserByID(userID)
+	if err != nil {
+		if isRecordNotFoundErr(err) {
+			if dbg {
+				log.Printf("[DEBUG][GET_PROFILE] Пользователь %d не найден: %v", userID, err)
+			}
+			writeStandardJSON(w, http.StatusNotFound, standardAPIResponse{
+				OK:    false,
+				Code:  "USER_NOT_FOUND",
+				Error: "user not found",
+			})
+			return
+		}
+		if dbg {
+			log.Printf("[DEBUG][GET_PROFILE] Ошибка БД при получении профиля user_id=%d: %v", userID, err)
+		}
+		writeStandardJSON(w, http.StatusInternalServerError, standardAPIResponse{
+			OK:    false,
+			Code:  "DB_ERROR",
+			Error: "failed to load user profile from database",
+		})
+		return
+	}
+
+	if dbg {
+		log.Printf("[DEBUG][GET_PROFILE] Профиль загружен из БД: %+v", userProfile)
+	}
+
 	writeStandardJSON(w, http.StatusOK, standardAPIResponse{
-		OK:   true,
-		Data: &standardDataPayload{},
+		OK: true,
+		Data: &standardDataPayload{
+			Profile: userProfile,
+		},
 	})
 }

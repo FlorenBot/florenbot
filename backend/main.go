@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"florenbot/backend/engine/cache"
+	"florenbot/backend/engine/mysql"
 	"florenbot/backend/routes"
 	"florenbot/services"
 
@@ -52,8 +53,9 @@ func main() {
 	}
 
 	if dbg {
-		log.Printf("[DEBUG][MAIN] Переменные окружения проверены: API_URL=%s, APP_KEY_SET=true (len=%d), CACHE_ENGINE=%q, REDIS_ADDR=%q",
-			apiUrl, len(appKey), os.Getenv("CACHE_ENGINE"), os.Getenv("REDIS_ADDR"))
+		log.Printf("[DEBUG][MAIN] Переменные окружения проверены: API_URL=%s, APP_KEY_SET=true (len=%d), CACHE_ENGINE=%q, REDIS_ADDR=%q, DB_HOST=%q, DB_PORT=%q, DB_NAME=%q",
+			apiUrl, len(appKey), os.Getenv("CACHE_ENGINE"), os.Getenv("REDIS_ADDR"),
+			os.Getenv("DB_HOST"), os.Getenv("DB_PORT"), os.Getenv("DB_NAME"))
 	}
 
 	cache.InitCache()
@@ -61,6 +63,16 @@ func main() {
 
 	if dbg {
 		log.Printf("[DEBUG][MAIN] После InitCache: RDB_is_nil=%v", cache.GetRedis() == nil)
+	}
+
+	if dbg {
+		log.Printf("[DEBUG][MAIN] Подключение к БД через mysql.ConnectDB()...")
+	}
+	mysql.ConnectDB()
+	defer mysql.CloseDB()
+
+	if dbg {
+		log.Printf("[DEBUG][MAIN] После ConnectDB: DB_is_nil=%v", mysql.DB == nil)
 	}
 
 	httpSvc := services.NewHTTPService(apiUrl, 0)

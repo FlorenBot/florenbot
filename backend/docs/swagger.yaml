@@ -1282,7 +1282,7 @@ paths:
       - promos
   /api/v1/standard/balance:
     get:
-      description: Возвращает текущий баланс пользователя
+      description: Возвращает текущий баланс пользователя напрямую из БД
       parameters:
       - description: ID пользователя
         in: query
@@ -1298,6 +1298,14 @@ paths:
             $ref: '#/definitions/backend_routes_handlers.standardAPIResponse'
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.standardAPIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.standardAPIResponse'
+        "500":
+          description: Internal Server Error
           schema:
             $ref: '#/definitions/backend_routes_handlers.standardAPIResponse'
       summary: Баланс пользователя
@@ -1361,7 +1369,7 @@ paths:
       - standard
   /api/v1/standard/profile:
     get:
-      description: Возвращает подробный профиль пользователя и данные чата
+      description: Возвращает подробный профиль пользователя и данные чата из БД
       parameters:
       - description: ID пользователя
         in: query
@@ -1393,6 +1401,14 @@ paths:
             $ref: '#/definitions/backend_routes_handlers.standardAPIResponse'
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.standardAPIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.standardAPIResponse'
+        "500":
+          description: Internal Server Error
           schema:
             $ref: '#/definitions/backend_routes_handlers.standardAPIResponse'
       summary: Профиль пользователя

@@ -1508,7 +1508,7 @@ const docTemplate = `{
         },
         "/api/v1/standard/balance": {
             "get": {
-                "description": "Возвращает текущий баланс пользователя",
+                "description": "Возвращает текущий баланс пользователя напрямую из БД",
                 "produces": [
                     "application/json"
                 ],
@@ -1534,6 +1534,18 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.standardAPIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.standardAPIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/backend_routes_handlers.standardAPIResponse"
                         }
@@ -1625,7 +1637,7 @@ const docTemplate = `{
         },
         "/api/v1/standard/profile": {
             "get": {
-                "description": "Возвращает подробный профиль пользователя и данные чата",
+                "description": "Возвращает подробный профиль пользователя и данные чата из БД",
                 "produces": [
                     "application/json"
                 ],
@@ -1675,6 +1687,18 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.standardAPIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.standardAPIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/backend_routes_handlers.standardAPIResponse"
                         }
