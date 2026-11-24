@@ -15,8 +15,10 @@ test
 test.go
 data
 
-cache
-!engine/cache
+/cache/
+!engine/
+!engine/cache/
+!engine/cache/**
 
 redis.go.bak
 main.go.bak

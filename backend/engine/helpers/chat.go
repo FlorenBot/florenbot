@@ -1,8 +1,8 @@
 package helpers
 
 import (
-	engine "florenbot/engine/mysql" // Импорт вашего пакета с DB
-	"florenbot/engine/structs"
+	engine "florenbot/backend/engine/mysql" // Импорт вашего пакета с DB
+	"florenbot/backend/engine/structs"
 	"log"
 )
 

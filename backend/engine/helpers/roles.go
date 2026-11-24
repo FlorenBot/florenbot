@@ -1,8 +1,8 @@
 package helpers
 
 import (
-	engine "florenbot/engine/mysql"
-	"florenbot/engine/structs"
+	engine "florenbot/backend/engine/mysql"
+	"florenbot/backend/engine/structs"
 	"gorm.io/gorm"
 )
 

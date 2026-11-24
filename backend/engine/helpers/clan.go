@@ -2,11 +2,11 @@ package helpers
 
 import (
 	"errors"
-	engine "florenbot/engine/mysql"
-	"florenbot/engine/structs"
+	engine "florenbot/backend/engine/mysql"
+	"florenbot/backend/engine/structs"
 	"gorm.io/gorm"
 	// Используем пакет для генерации кодов
-	"florenbot/helpers"
+	"florenbot/bot/helpers"
 )
 
 // --- Основные операции ---

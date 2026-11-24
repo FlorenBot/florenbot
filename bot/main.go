@@ -127,10 +127,13 @@ func main() {
 func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	text := message.Text
 	lowerText := strings.ToLower(text)
+	baseURL := helpers.GetAPIURL()
+
+	apiClient := services.NewHTTPService(baseURL, 0)
 
 	if strings.Contains(lowerText, "спасибо") {
 		log.Printf("Зафиксирована благодарность от @%s", message.From.UserName)
-		handlers.HandleThanks(bot, message)
+		handlers.HandleThanks(bot, message, apiClient)
 		return
 	}
 
@@ -164,11 +167,7 @@ func handleCommands(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	// 	return
 	// }
 
-	baseURL := os.Getenv("API_URL")
-	if baseURL == "" {
-		log.Panic("Нет API_URL в .env")
-		panic("Пожалуйста укажите API_URL!")
-	}
+	baseURL := helpers.GetAPIURL()
 
 	apiClient := services.NewHTTPService(baseURL, 0)
 
@@ -176,29 +175,29 @@ func handleCommands(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	case "start":
 		handlers.HandleStart(bot, apiClient, message)
 	case "balance":
-		handlers.HandleBalance(bot, message)
+		handlers.HandleBalance(bot, apiClient, message)
 	case "pin":
 		admin_handlers.HandlePin(bot, message)
 	case "profile":
-		handlers.HandleProfile(bot, message)
+		handlers.HandleProfile(bot, apiClient, message)
 	case "casino":
-		handlers.HandleCasino(bot, message)
+		handlers.HandleCasino(bot, message, apiClient)
 	case "clan":
-		handlers.HandleClan(bot, message)
+		handlers.HandleClan(bot, message, apiClient)
 	case "roulette":
-		handlers.HandleRoulette(bot, message)
+		handlers.HandleRoulette(bot, message, apiClient)
 	// case "check":
 	// 	handlers.HandleMyAccount(bot, message)
 	// case "createcheck":
 	// 	handlers.HandleCreateCheck(bot, message)
 	case "bones":
-		bones.HandleBones(bot, message)
+		bones.HandleBones(bot, message, apiClient)
 	case "q":
 		handlers.HandleQuit(bot, message)
 	case "top":
-		handlers.HandleTopMessages(bot, message)
+		handlers.HandleTopMessages(bot, apiClient, message)
 	case "topbal":
-		handlers.HandleTopBalance(bot, message)
+		handlers.HandleTopBalance(bot, apiClient, message)
 	case "givemoney":
 		admin_handlers.HandleGiveMoney(bot, message)
 	// case "pay":
@@ -206,7 +205,7 @@ func handleCommands(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	case "cloneroles":
 		admin_handlers.HandleCloneRoles(bot, message)
 	case "promo":
-		handlers.HandlePromo(bot, message)
+		handlers.HandlePromo(bot, message, apiClient)
 	case "info":
 		handlers.HandleInfo(bot, message)
 	case "msg":
@@ -216,25 +215,25 @@ func handleCommands(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	case "vip":
 		handlers.HandleVip(bot, apiClient, message)
 	case "rep":
-		handlers.HandleReputation(bot, message)
+		handlers.HandleReputation(bot, message, apiClient)
 	case "report":
-		handlers.HandleReport(bot, message)
+		handlers.HandleReport(bot, message, apiClient)
 	case "спасибо":
-		handlers.HandleThanks(bot, message)
+		handlers.HandleThanks(bot, message, apiClient)
 	case "ban":
-		admin_handlers.HandleBan(bot, message)
+		admin_handlers.HandleBan(bot, message, apiClient)
 	case "mute":
-		admin_handlers.HandleMute(bot, message)
+		admin_handlers.HandleMute(bot, message, apiClient)
 	case "unmute":
-		admin_handlers.HandleUnMute(bot, message)
+		admin_handlers.HandleUnMute(bot, message, apiClient)
 	case "restrict":
 		admin_handlers.HandleRestrictUserCmd(bot, message)
 	case "rr":
 		admin_handlers.HandleRemoveRole(bot, message)
 	case "del":
-		admin_handlers.HandleDeleteMessage(bot, message)
+		admin_handlers.HandleDeleteMessage(bot, message, apiClient)
 	case "kick":
-		admin_handlers.HandleKick(bot, message)
+		admin_handlers.HandleKick(bot, message, apiClient)
 	case "staff":
 		admin_handlers.HandleStaff(bot, message)
 	case "setrole":

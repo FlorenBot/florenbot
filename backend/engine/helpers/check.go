@@ -5,8 +5,8 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	engine "florenbot/engine/mysql"
-	"florenbot/engine/structs"
+	engine "florenbot/backend/engine/mysql"
+	"florenbot/backend/engine/structs"
 )
 
 // Генерация случайного публичного номера счета (например: ACC-8f4a1c)

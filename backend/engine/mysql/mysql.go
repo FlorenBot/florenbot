@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	"florenbot/engine/structs"
+	"florenbot/backend/engine/structs"
 	"github.com/joho/godotenv"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
