@@ -1,4 +1,9 @@
-package backend
+// @title FlorenBot REST API
+// @version 1.0
+// @description REST API бэкенда для FlorenBot
+// @host localhost:8080
+// @BasePath /
+package main
 
 import (
 	"log"
@@ -12,24 +17,19 @@ import (
 )
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
+	if err := godotenv.Load(); err != nil {
 		log.Println("env not found, using system environment variables")
 	}
 
 	apiUrl := os.Getenv("API_URL")
-
-
 	if apiUrl == "" {
 		log.Panic("Укажите API_URL")
-		panic("Укажите API_URL")
 	}
 
 	httpSvc := services.NewHTTPService(apiUrl, 0)
 
 	mux := http.NewServeMux()
-	standard := routes.NewStandardHandler(httpSvc)
-	standard.Register(mux)
+	routes.RegisterRoutes(mux, httpSvc)
 
 	addr := ":8080"
 	log.Printf("REST API listening on %s", addr)

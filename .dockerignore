@@ -8,7 +8,7 @@ cache
 db
 LICENSE
 .gitignore
-.env.example
+.env*
 Dockerfile
 CONTRIBUTING.md
 CHANGELOG.md
@@ -24,3 +24,4 @@ docker-compose.yml
 BUILDING.md
 PRIVACY.md
 SECURITY.md
+bin

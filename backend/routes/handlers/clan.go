@@ -1,4 +1,4 @@
-package routes
+package handlers
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"os"
 
 	cache "florenbot/backend/engine/cache"
 	helpers "florenbot/backend/engine/helpers"
@@ -99,6 +100,12 @@ func decodeClanRequest(r *http.Request) (clanRequest, error) {
 	}
 	return req, nil
 }
+
+func isDebugEnabled() bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv("DEBUG")))
+	return v == "1" || v == "true" || v == "yes"
+}
+
 
 // GetMyClan — GET /api/v1/clans/me?user_id=...
 func (h *ClanHandler) GetMyClan(w http.ResponseWriter, r *http.Request) {

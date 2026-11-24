@@ -44,3 +44,5 @@ for_docker
 assets
 test
 *.sh
+
+bin

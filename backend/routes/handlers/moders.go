@@ -1,4 +1,4 @@
-package routes
+package handlers
 
 import (
 	"encoding/json"
@@ -15,6 +15,15 @@ import (
 type ModersHandler struct {
 	HTTP *services.HTTPService
 }
+
+func parseChatIDParam(r *http.Request) (int64, error) {
+	raw := r.URL.Query().Get("chat_id")
+	if raw == "" {
+		raw = r.PathValue("chat_id")
+	}
+	return strconv.ParseInt(raw, 10, 64)
+}
+
 
 func NewModersHandler(httpService *services.HTTPService) *ModersHandler {
 	return &ModersHandler{
@@ -167,7 +176,7 @@ func (h *ModersHandler) CheckDeleteMessage(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	chatID, _, err := parseChatIDParam(r)
+	chatID, err := parseChatIDParam(r)
 	if err != nil {
 		writeModerJSON(w, http.StatusBadRequest, moderAPIResponse{OK: false, Code: "INVALID_CHAT", Error: "invalid chat_id"})
 		return

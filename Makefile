@@ -1,6 +1,8 @@
 
 DOCKER_COMPOSE = docker compose
 
+BIN_DIR := bin
+
 .PHONY: up, down, build, run
 
 up:
@@ -11,6 +13,10 @@ down:
 
 build:
 	./build.sh
+
+build: build-backend build-bot
+
+
 
 run:
 	go run ./bot
@@ -26,3 +32,16 @@ vet:
 
 lint:
 	golangci-lint run ./...
+
+.PHONY: build build-backend build-bot clean
+
+build-backend:
+	mkdir -p $(BIN_DIR)
+	go build -o $(BIN_DIR)/backend ./backend/main.go
+
+build-bot:
+	mkdir -p $(BIN_DIR)
+	go build -o $(BIN_DIR)/bot ./bot
+
+clean:
+	rm -rf $(BIN_DIR)
