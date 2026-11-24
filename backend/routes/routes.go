@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"fmt"
 	"net/http"
 
 	_ "florenbot/backend/docs"
@@ -11,7 +12,9 @@ import (
 )
 
 func RegisterRoutes(mux *http.ServeMux, httpSvc *services.HTTPService) {
-	mux.Handle("/swagger/", httpSwagger.WrapHandler)
+	mux.Handle("/docs/", http.StripPrefix("/docs", httpSwagger.WrapHandler))
+
+	fmt.Println("Swagger запущен на http://localhost:8080/docs")
 
 	standard := handlers.NewStandardHandler(httpSvc)
 	standard.Register(mux)

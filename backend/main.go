@@ -32,7 +32,8 @@ func main() {
 	routes.RegisterRoutes(mux, httpSvc)
 
 	addr := ":8080"
-	log.Printf("REST API listening on %s", addr)
+	port := 8080
+	log.Printf("Запущен на http://localhost:%d", port)
 	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Fatal(err)
 	}

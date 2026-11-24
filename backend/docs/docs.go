@@ -14,7 +14,574 @@ const docTemplate = `{
     },
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
-    "paths": {}
+    "paths": {
+        "/api/v1/standard/balance": {
+            "get": {
+                "description": "Возвращает текущий баланс пользователя",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "standard"
+                ],
+                "summary": "Баланс пользователя",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID пользователя",
+                        "name": "user_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.standardAPIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.standardAPIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/standard/bonus": {
+            "post": {
+                "description": "Начисляет ежедневный бонус пользователю или возвращает оставшееся время ожидания",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "standard"
+                ],
+                "summary": "Ежедневный бонус",
+                "parameters": [
+                    {
+                        "description": "Данные пользователя",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.bonusRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.standardAPIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.standardAPIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/standard/help-context": {
+            "get": {
+                "description": "Возвращает роль пользователя и флаги прав для формирования меню команд",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "standard"
+                ],
+                "summary": "Контекст ролей для /help",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID пользователя",
+                        "name": "user_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID чата",
+                        "name": "chat_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.standardAPIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.standardAPIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/standard/profile": {
+            "get": {
+                "description": "Возвращает подробный профиль пользователя и данные чата",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "standard"
+                ],
+                "summary": "Профиль пользователя",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID пользователя",
+                        "name": "user_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID чата",
+                        "name": "chat_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Тип чата",
+                        "name": "chat_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Username пользователя",
+                        "name": "username",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Имя пользователя",
+                        "name": "first_name",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.standardAPIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.standardAPIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/standard/profile/init": {
+            "post": {
+                "description": "Создаёт или возвращает профиль пользователя при старте в личных сообщениях",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "standard"
+                ],
+                "summary": "Инициализация профиля в ЛС",
+                "parameters": [
+                    {
+                        "description": "Данные пользователя",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.profileInitRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.standardAPIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.standardAPIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/standard/start/group": {
+            "post": {
+                "description": "Инициализирует чат и роли при вызове /start в группе или супергруппе",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "standard"
+                ],
+                "summary": "Регистрация группового чата",
+                "parameters": [
+                    {
+                        "description": "Данные пользователя и чата",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.startGroupRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.standardAPIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.standardAPIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/standard/top/balance": {
+            "get": {
+                "description": "Возвращает список пользователей с наибольшим балансом",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "standard"
+                ],
+                "summary": "Топ по балансу",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Лимит записей",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.standardAPIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/standard/top/messages": {
+            "get": {
+                "description": "Возвращает список пользователей по количеству сообщений",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "standard"
+                ],
+                "summary": "Топ по сообщениям",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Лимит записей",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.standardAPIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/standard/vip": {
+            "post": {
+                "description": "Активирует VIP-статус для пользователя или сообщает, что он уже активен",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "standard"
+                ],
+                "summary": "Выдача или проверка VIP-статуса",
+                "parameters": [
+                    {
+                        "description": "ID пользователя",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.vipRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.standardAPIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.standardAPIResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "backend_routes_handlers.bonusRequest": {
+            "type": "object",
+            "properties": {
+                "first_name": {
+                    "type": "string",
+                    "example": "Egor"
+                },
+                "user_id": {
+                    "type": "integer",
+                    "example": 123456789
+                },
+                "username": {
+                    "type": "string",
+                    "example": "egorka"
+                }
+            }
+        },
+        "backend_routes_handlers.profileInitRequest": {
+            "type": "object",
+            "properties": {
+                "first_name": {
+                    "type": "string",
+                    "example": "Egor"
+                },
+                "user_id": {
+                    "type": "integer",
+                    "example": 123456789
+                },
+                "username": {
+                    "type": "string",
+                    "example": "egorka"
+                }
+            }
+        },
+        "backend_routes_handlers.standardAPIResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "data": {
+                    "$ref": "#/definitions/backend_routes_handlers.standardDataPayload"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "ok": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "backend_routes_handlers.standardDataPayload": {
+            "type": "object",
+            "properties": {
+                "bonus_amount": {
+                    "type": "integer",
+                    "example": 100
+                },
+                "chat_title": {
+                    "type": "string"
+                },
+                "is_admin": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "is_creator": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "is_creator_in_chat": {
+                    "type": "boolean"
+                },
+                "is_owner_or_creator": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "is_vip": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "new_balance": {
+                    "type": "number",
+                    "example": 500
+                },
+                "profile": {
+                    "$ref": "#/definitions/florenbot_backend_engine_structs.User"
+                },
+                "remaining_hours": {
+                    "type": "number",
+                    "example": 12
+                },
+                "role_display": {
+                    "type": "string"
+                },
+                "role_name": {
+                    "type": "string",
+                    "example": "Гость"
+                },
+                "role_short": {
+                    "type": "string",
+                    "example": "moderator"
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/florenbot_backend_engine_structs.User"
+                    }
+                }
+            }
+        },
+        "backend_routes_handlers.startGroupRequest": {
+            "type": "object",
+            "properties": {
+                "chat_id": {
+                    "type": "integer",
+                    "example": -1001234567890
+                },
+                "chat_title": {
+                    "type": "string",
+                    "example": "Test Chat"
+                },
+                "first_name": {
+                    "type": "string",
+                    "example": "Egor"
+                },
+                "user_id": {
+                    "type": "integer",
+                    "example": 123456789
+                },
+                "username": {
+                    "type": "string",
+                    "example": "egorka"
+                }
+            }
+        },
+        "backend_routes_handlers.vipRequest": {
+            "type": "object",
+            "properties": {
+                "user_id": {
+                    "type": "integer",
+                    "example": 123456789
+                }
+            }
+        },
+        "florenbot_backend_engine_structs.User": {
+            "type": "object",
+            "properties": {
+                "balance": {
+                    "description": "Финансовые поля (float64 для простых расчетов)",
+                    "type": "number"
+                },
+                "clan_id": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "euro": {
+                    "type": "number"
+                },
+                "first_name": {
+                    "type": "string"
+                },
+                "floren_coin": {
+                    "type": "number"
+                },
+                "id": {
+                    "description": "ID типа uint64 соответствует формату Telegram ID",
+                    "type": "integer"
+                },
+                "last_bonus_at": {
+                    "type": "string"
+                },
+                "losses": {
+                    "type": "integer"
+                },
+                "message_count": {
+                    "type": "integer"
+                },
+                "negative_reputation": {
+                    "type": "integer"
+                },
+                "positive_reputation": {
+                    "type": "integer"
+                },
+                "promocode": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                },
+                "vip": {
+                    "type": "integer"
+                },
+                "vip_active_at": {
+                    "description": "Автоматические поля времени",
+                    "type": "string"
+                },
+                "wins": {
+                    "type": "integer"
+                }
+            }
+        }
+    }
 }`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it

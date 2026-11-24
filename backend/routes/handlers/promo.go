@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -18,10 +19,9 @@ import (
 	structs "florenbot/backend/engine/structs"
 	std_helpers "florenbot/bot/helpers"
 	"florenbot/services"
-	"gorm.io/gorm"
-	"os"
-	"github.com/joho/godotenv"
 
+	"github.com/joho/godotenv"
+	"gorm.io/gorm"
 )
 
 const createPromoMinBalance = 2000.0
@@ -48,28 +48,28 @@ func (h *PromoHandler) Register(mux *http.ServeMux) {
 }
 
 type promoRequest struct {
-	UserID    uint64  `json:"user_id"`
-	Username  string  `json:"username,omitempty"`
-	FirstName string  `json:"first_name,omitempty"`
-	ChatID    int64   `json:"chat_id,omitempty"`
-	Code      string  `json:"code,omitempty"`
-	AmountInt int     `json:"amount_int,omitempty"`
-	Amount    float64 `json:"amount,omitempty"`
-	Duration  string  `json:"duration,omitempty"`
+	UserID    uint64  `json:"user_id" example:"123456789"`
+	Username  string  `json:"username,omitempty" example:"egorka"`
+	FirstName string  `json:"first_name,omitempty" example:"Egor"`
+	ChatID    int64   `json:"chat_id,omitempty" example:"-1001234567890"`
+	Code      string  `json:"code,omitempty" example:"FLOREN2026"`
+	AmountInt int     `json:"amount_int,omitempty" example:"500"`
+	Amount    float64 `json:"amount,omitempty" example:"500"`
+	Duration  string  `json:"duration,omitempty" example:"24h"`
 }
 
 type promoAPIResponse struct {
-	OK    bool   `json:"ok"`
+	OK    bool   `json:"ok" example:"true"`
 	Data  any    `json:"data,omitempty"`
 	Error string `json:"error,omitempty"`
 	Code  string `json:"code,omitempty"`
 }
 
 type promoStatItem struct {
-	Code      string `json:"code"`
-	Users     int64  `json:"users"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
+	Code      string `json:"code" example:"FLOREN2026"`
+	Users     int64  `json:"users" example:"15"`
+	CreatedAt string `json:"created_at" example:"24.11.2026"`
+	UpdatedAt string `json:"updated_at" example:"-"`
 }
 
 func writePromoJSON(w http.ResponseWriter, status int, payload promoAPIResponse) {
@@ -119,7 +119,6 @@ func ensurePromoUser(userID uint64, username, firstName string, debugType bool) 
 	return http.StatusOK, "", "", nil
 }
 
-
 func (h *PromoHandler) checkCreatorViaService(ctx context.Context, chatID int64, userID int64) (bool, error) {
 	err := godotenv.Load()
 	if err != nil {
@@ -163,7 +162,20 @@ func (h *PromoHandler) checkCreatorViaService(ctx context.Context, chatID int64,
 	return body.Data.IsCreator, nil
 }
 
-// CreatePromo — POST /api/v1/promos
+// CreatePromo godoc
+// @Summary Создание промокода
+// @Description Создаёт новый промокод при достаточном балансе пользователя (минимум 2000)
+// @Tags promos
+// @Accept json
+// @Produce json
+// @Param request body promoRequest true "Данные для создания промокода"
+// @Success 201 {object} promoAPIResponse
+// @Failure 400 {object} promoAPIResponse
+// @Failure 401 {object} promoAPIResponse
+// @Failure 402 {object} promoAPIResponse
+// @Failure 409 {object} promoAPIResponse
+// @Failure 500 {object} promoAPIResponse
+// @Router /api/v1/promos [post]
 func (h *PromoHandler) CreatePromo(w http.ResponseWriter, r *http.Request) {
 	req, err := decodePromoRequest(r)
 	if err != nil {
@@ -225,7 +237,21 @@ func (h *PromoHandler) CreatePromo(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// DeletePromo — DELETE /api/v1/promos/{code}?user_id=...&chat_id=...
+// DeletePromo godoc
+// @Summary Удаление промокода
+// @Description Удаляет промокод по коду (доступно владельцу промокода или создателю чата)
+// @Tags promos
+// @Produce json
+// @Param code path string true "Код промокода"
+// @Param user_id query int true "ID пользователя"
+// @Param chat_id query int false "ID чата"
+// @Success 200 {object} promoAPIResponse
+// @Failure 400 {object} promoAPIResponse
+// @Failure 401 {object} promoAPIResponse
+// @Failure 403 {object} promoAPIResponse
+// @Failure 404 {object} promoAPIResponse
+// @Failure 500 {object} promoAPIResponse
+// @Router /api/v1/promos/{code} [delete]
 func (h *PromoHandler) DeletePromo(w http.ResponseWriter, r *http.Request) {
 	debugType := isDebugEnabled()
 	code := strings.TrimSpace(r.PathValue("code"))
@@ -314,7 +340,19 @@ func (h *PromoHandler) DeletePromo(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ActivatePromo — POST /api/v1/promos/activate
+// ActivatePromo godoc
+// @Summary Активация промокода
+// @Description Активирует промокод для пользователя и начисляет бонус на баланс
+// @Tags promos
+// @Accept json
+// @Produce json
+// @Param request body promoRequest true "Данные для активации промокода"
+// @Success 200 {object} promoAPIResponse
+// @Failure 400 {object} promoAPIResponse
+// @Failure 404 {object} promoAPIResponse
+// @Failure 409 {object} promoAPIResponse
+// @Failure 500 {object} promoAPIResponse
+// @Router /api/v1/promos/activate [post]
 func (h *PromoHandler) ActivatePromo(w http.ResponseWriter, r *http.Request) {
 	req, err := decodePromoRequest(r)
 	if err != nil {
@@ -392,7 +430,16 @@ func (h *PromoHandler) ActivatePromo(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ListUserPromos — GET /api/v1/promos?user_id=...
+// ListUserPromos godoc
+// @Summary Список промокодов пользователя
+// @Description Возвращает промокоды, созданные указанным пользователем
+// @Tags promos
+// @Produce json
+// @Param user_id query int true "ID пользователя"
+// @Success 200 {object} promoAPIResponse
+// @Failure 400 {object} promoAPIResponse
+// @Failure 500 {object} promoAPIResponse
+// @Router /api/v1/promos [get]
 func (h *PromoHandler) ListUserPromos(w http.ResponseWriter, r *http.Request) {
 	debugType := isDebugEnabled()
 	userID, err := parseUserIDParam(r)
@@ -418,7 +465,20 @@ func (h *PromoHandler) ListUserPromos(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// EditPromo — PATCH /api/v1/promos/{code}
+// EditPromo godoc
+// @Summary Редактирование промокода
+// @Description Обновляет параметры промокода его владельцем
+// @Tags promos
+// @Accept json
+// @Produce json
+// @Param code path string true "Код промокода"
+// @Param request body promoRequest true "Новые параметры промокода"
+// @Success 200 {object} promoAPIResponse
+// @Failure 400 {object} promoAPIResponse
+// @Failure 403 {object} promoAPIResponse
+// @Failure 404 {object} promoAPIResponse
+// @Failure 500 {object} promoAPIResponse
+// @Router /api/v1/promos/{code} [patch]
 func (h *PromoHandler) EditPromo(w http.ResponseWriter, r *http.Request) {
 	req, err := decodePromoRequest(r)
 	if err != nil {
@@ -466,7 +526,21 @@ func (h *PromoHandler) EditPromo(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// SetPromoExpire — POST /api/v1/promos/{code}/expire
+// SetPromoExpire godoc
+// @Summary Установка срока действия промокода
+// @Description Задаёт время истечения промокода и сохраняет таймер в Redis
+// @Tags promos
+// @Accept json
+// @Produce json
+// @Param code path string true "Код промокода"
+// @Param request body promoRequest true "Длительность действия промокода"
+// @Success 200 {object} promoAPIResponse
+// @Failure 400 {object} promoAPIResponse
+// @Failure 403 {object} promoAPIResponse
+// @Failure 404 {object} promoAPIResponse
+// @Failure 409 {object} promoAPIResponse
+// @Failure 500 {object} promoAPIResponse
+// @Router /api/v1/promos/{code}/expire [post]
 func (h *PromoHandler) SetPromoExpire(w http.ResponseWriter, r *http.Request) {
 	req, err := decodePromoRequest(r)
 	if err != nil {
@@ -543,7 +617,22 @@ func (h *PromoHandler) SetPromoExpire(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// DeletePromoExpire — DELETE /api/v1/promos/{code}/expire?user_id=...
+// DeletePromoExpire godoc
+// @Summary Удаление срока действия промокода
+// @Description Снимает ограничение по времени с промокода и удаляет таймер из Redis
+// @Tags promos
+// @Produce json
+// @Param code path string true "Код промокода"
+// @Param user_id query int true "ID пользователя"
+// @Success 200 {object} promoAPIResponse
+// @Failure 400 {object} promoAPIResponse
+// @Failure 401 {object} promoAPIResponse
+// @Failure 403 {object} promoAPIResponse
+// @Failure 404 {object} promoAPIResponse
+// @Failure 409 {object} promoAPIResponse
+// @Failure 500 {object} promoAPIResponse
+// @Failure 503 {object} promoAPIResponse
+// @Router /api/v1/promos/{code}/expire [delete]
 func (h *PromoHandler) DeletePromoExpire(w http.ResponseWriter, r *http.Request) {
 	debugType := isDebugEnabled()
 	code := strings.TrimSpace(r.PathValue("code"))
@@ -612,7 +701,14 @@ func (h *PromoHandler) DeletePromoExpire(w http.ResponseWriter, r *http.Request)
 	})
 }
 
-// StatsPromos — GET /api/v1/promos/stats
+// StatsPromos godoc
+// @Summary Статистика по промокодам
+// @Description Возвращает статистику активаций и дат создания/обновления промокодов
+// @Tags promos
+// @Produce json
+// @Success 200 {object} promoAPIResponse{data=map[string][]promoStatItem}
+// @Failure 500 {object} promoAPIResponse
+// @Router /api/v1/promos/stats [get]
 func (h *PromoHandler) StatsPromos(w http.ResponseWriter, r *http.Request) {
 	debugType := isDebugEnabled()
 

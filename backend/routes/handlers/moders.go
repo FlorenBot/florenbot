@@ -24,7 +24,6 @@ func parseChatIDParam(r *http.Request) (int64, error) {
 	return strconv.ParseInt(raw, 10, 64)
 }
 
-
 func NewModersHandler(httpService *services.HTTPService) *ModersHandler {
 	return &ModersHandler{
 		HTTP: httpService,
@@ -38,23 +37,23 @@ func (h *ModersHandler) Register(mux *http.ServeMux) {
 }
 
 type moderAPIResponse struct {
-	OK    bool   `json:"ok"`
+	OK    bool   `json:"ok" example:"true"`
 	Data  any    `json:"data,omitempty"`
 	Error string `json:"error,omitempty"`
 	Code  string `json:"code,omitempty"`
 }
 
 type resolveTargetRequest struct {
-	ReplyUserID int64  `json:"reply_user_id,omitempty"`
-	UsernameArg string `json:"username_arg,omitempty"`
-	Reason      string `json:"reason,omitempty"`
+	ReplyUserID int64  `json:"reply_user_id,omitempty" example:"123456789"`
+	UsernameArg string `json:"username_arg,omitempty" example:"@egorka"`
+	Reason      string `json:"reason,omitempty" example:"спам"`
 }
 
 type prepareMuteRequest struct {
-	ReplyUserID int64  `json:"reply_user_id,omitempty"`
-	UsernameArg string `json:"username_arg,omitempty"`
-	DurationStr string `json:"duration_str"`
-	Reason      string `json:"reason,omitempty"`
+	ReplyUserID int64  `json:"reply_user_id,omitempty" example:"123456789"`
+	UsernameArg string `json:"username_arg,omitempty" example:"@egorka"`
+	DurationStr string `json:"duration_str" example:"1h"`
+	Reason      string `json:"reason,omitempty" example:"флуд"`
 }
 
 func writeModerJSON(w http.ResponseWriter, status int, payload moderAPIResponse) {
@@ -86,7 +85,17 @@ func resolveTargetUserID(replyUserID int64, usernameArg string) (int64, string, 
 	return targetID, "", nil
 }
 
-// ResolveTarget — POST /api/v1/moders/resolve-target
+// ResolveTarget godoc
+// @Summary Определение целевого пользователя для модерации
+// @Description Разрешает ID пользователя по reply_user_id или username_arg и возвращает данные профиля из БД
+// @Tags moders
+// @Accept json
+// @Produce json
+// @Param request body resolveTargetRequest true "Параметры поиска пользователя"
+// @Success 200 {object} moderAPIResponse
+// @Failure 400 {object} moderAPIResponse
+// @Failure 404 {object} moderAPIResponse
+// @Router /api/v1/moders/resolve-target [post]
 func (h *ModersHandler) ResolveTarget(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
@@ -123,7 +132,16 @@ func (h *ModersHandler) ResolveTarget(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// PrepareMute — POST /api/v1/moders/mute/prepare
+// PrepareMute godoc
+// @Summary Подготовка параметров мута
+// @Description Вычисляет timestamp окончания мута (until_date) и отображаемое имя пользователя
+// @Tags moders
+// @Accept json
+// @Produce json
+// @Param request body prepareMuteRequest true "Параметры мута"
+// @Success 200 {object} moderAPIResponse
+// @Failure 400 {object} moderAPIResponse
+// @Router /api/v1/moders/mute/prepare [post]
 func (h *ModersHandler) PrepareMute(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
@@ -168,7 +186,17 @@ func (h *ModersHandler) PrepareMute(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// CheckDeleteMessage — GET /api/v1/moders/delete-check?user_id=...&chat_id=...
+// CheckDeleteMessage godoc
+// @Summary Проверка прав и данных для удаления сообщения
+// @Description Проверяет корректность user_id и chat_id, а также наличие пользователя и чата в БД
+// @Tags moders
+// @Produce json
+// @Param user_id query int true "ID пользователя"
+// @Param chat_id query int true "ID чата"
+// @Success 200 {object} moderAPIResponse
+// @Failure 400 {object} moderAPIResponse
+// @Failure 404 {object} moderAPIResponse
+// @Router /api/v1/moders/delete-check [get]
 func (h *ModersHandler) CheckDeleteMessage(w http.ResponseWriter, r *http.Request) {
 	userID, err := parseUserIDParam(r)
 	if err != nil {

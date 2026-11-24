@@ -1,9 +1,392 @@
 basePath: /
+definitions:
+  backend_routes_handlers.bonusRequest:
+    properties:
+      first_name:
+        example: Egor
+        type: string
+      user_id:
+        example: 123456789
+        type: integer
+      username:
+        example: egorka
+        type: string
+    type: object
+  backend_routes_handlers.profileInitRequest:
+    properties:
+      first_name:
+        example: Egor
+        type: string
+      user_id:
+        example: 123456789
+        type: integer
+      username:
+        example: egorka
+        type: string
+    type: object
+  backend_routes_handlers.standardAPIResponse:
+    properties:
+      code:
+        type: string
+      data:
+        $ref: '#/definitions/backend_routes_handlers.standardDataPayload'
+      error:
+        type: string
+      ok:
+        example: true
+        type: boolean
+    type: object
+  backend_routes_handlers.standardDataPayload:
+    properties:
+      bonus_amount:
+        example: 100
+        type: integer
+      chat_title:
+        type: string
+      is_admin:
+        example: false
+        type: boolean
+      is_creator:
+        example: false
+        type: boolean
+      is_creator_in_chat:
+        type: boolean
+      is_owner_or_creator:
+        example: false
+        type: boolean
+      is_vip:
+        example: true
+        type: boolean
+      new_balance:
+        example: 500
+        type: number
+      profile:
+        $ref: '#/definitions/florenbot_backend_engine_structs.User'
+      remaining_hours:
+        example: 12
+        type: number
+      role_display:
+        type: string
+      role_name:
+        example: Гость
+        type: string
+      role_short:
+        example: moderator
+        type: string
+      users:
+        items:
+          $ref: '#/definitions/florenbot_backend_engine_structs.User'
+        type: array
+    type: object
+  backend_routes_handlers.startGroupRequest:
+    properties:
+      chat_id:
+        example: -1001234567890
+        type: integer
+      chat_title:
+        example: Test Chat
+        type: string
+      first_name:
+        example: Egor
+        type: string
+      user_id:
+        example: 123456789
+        type: integer
+      username:
+        example: egorka
+        type: string
+    type: object
+  backend_routes_handlers.vipRequest:
+    properties:
+      user_id:
+        example: 123456789
+        type: integer
+    type: object
+  florenbot_backend_engine_structs.User:
+    properties:
+      balance:
+        description: Финансовые поля (float64 для простых расчетов)
+        type: number
+      clan_id:
+        type: integer
+      created_at:
+        type: string
+      euro:
+        type: number
+      first_name:
+        type: string
+      floren_coin:
+        type: number
+      id:
+        description: ID типа uint64 соответствует формату Telegram ID
+        type: integer
+      last_bonus_at:
+        type: string
+      losses:
+        type: integer
+      message_count:
+        type: integer
+      negative_reputation:
+        type: integer
+      positive_reputation:
+        type: integer
+      promocode:
+        type: string
+      status:
+        type: integer
+      updated_at:
+        type: string
+      username:
+        type: string
+      vip:
+        type: integer
+      vip_active_at:
+        description: Автоматические поля времени
+        type: string
+      wins:
+        type: integer
+    type: object
 host: localhost:8080
 info:
   contact: {}
   description: REST API бэкенда для FlorenBot
   title: FlorenBot REST API
   version: "1.0"
-paths: {}
+paths:
+  /api/v1/standard/balance:
+    get:
+      description: Возвращает текущий баланс пользователя
+      parameters:
+      - description: ID пользователя
+        in: query
+        name: user_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.standardAPIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.standardAPIResponse'
+      summary: Баланс пользователя
+      tags:
+      - standard
+  /api/v1/standard/bonus:
+    post:
+      consumes:
+      - application/json
+      description: Начисляет ежедневный бонус пользователю или возвращает оставшееся
+        время ожидания
+      parameters:
+      - description: Данные пользователя
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/backend_routes_handlers.bonusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.standardAPIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.standardAPIResponse'
+      summary: Ежедневный бонус
+      tags:
+      - standard
+  /api/v1/standard/help-context:
+    get:
+      description: Возвращает роль пользователя и флаги прав для формирования меню
+        команд
+      parameters:
+      - description: ID пользователя
+        in: query
+        name: user_id
+        required: true
+        type: integer
+      - description: ID чата
+        in: query
+        name: chat_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.standardAPIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.standardAPIResponse'
+      summary: Контекст ролей для /help
+      tags:
+      - standard
+  /api/v1/standard/profile:
+    get:
+      description: Возвращает подробный профиль пользователя и данные чата
+      parameters:
+      - description: ID пользователя
+        in: query
+        name: user_id
+        required: true
+        type: integer
+      - description: ID чата
+        in: query
+        name: chat_id
+        type: integer
+      - description: Тип чата
+        in: query
+        name: chat_type
+        type: string
+      - description: Username пользователя
+        in: query
+        name: username
+        type: string
+      - description: Имя пользователя
+        in: query
+        name: first_name
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.standardAPIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.standardAPIResponse'
+      summary: Профиль пользователя
+      tags:
+      - standard
+  /api/v1/standard/profile/init:
+    post:
+      consumes:
+      - application/json
+      description: Создаёт или возвращает профиль пользователя при старте в личных
+        сообщениях
+      parameters:
+      - description: Данные пользователя
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/backend_routes_handlers.profileInitRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.standardAPIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.standardAPIResponse'
+      summary: Инициализация профиля в ЛС
+      tags:
+      - standard
+  /api/v1/standard/start/group:
+    post:
+      consumes:
+      - application/json
+      description: Инициализирует чат и роли при вызове /start в группе или супергруппе
+      parameters:
+      - description: Данные пользователя и чата
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/backend_routes_handlers.startGroupRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.standardAPIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.standardAPIResponse'
+      summary: Регистрация группового чата
+      tags:
+      - standard
+  /api/v1/standard/top/balance:
+    get:
+      description: Возвращает список пользователей с наибольшим балансом
+      parameters:
+      - default: 10
+        description: Лимит записей
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.standardAPIResponse'
+      summary: Топ по балансу
+      tags:
+      - standard
+  /api/v1/standard/top/messages:
+    get:
+      description: Возвращает список пользователей по количеству сообщений
+      parameters:
+      - default: 10
+        description: Лимит записей
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.standardAPIResponse'
+      summary: Топ по сообщениям
+      tags:
+      - standard
+  /api/v1/standard/vip:
+    post:
+      consumes:
+      - application/json
+      description: Активирует VIP-статус для пользователя или сообщает, что он уже
+        активен
+      parameters:
+      - description: ID пользователя
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/backend_routes_handlers.vipRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.standardAPIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.standardAPIResponse'
+      summary: Выдача или проверка VIP-статуса
+      tags:
+      - standard
 swagger: "2.0"

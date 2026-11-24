@@ -6,16 +6,17 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
-	"os"
 
 	cache "florenbot/backend/engine/cache"
 	helpers "florenbot/backend/engine/helpers"
 	structs "florenbot/backend/engine/structs"
 	std_helpers "florenbot/bot/helpers"
 	"florenbot/services"
+
 	"gorm.io/gorm"
 )
 
@@ -52,19 +53,19 @@ func (h *ClanHandler) Register(mux *http.ServeMux) {
 }
 
 type clanRequest struct {
-	UserID    uint64 `json:"user_id"`
-	Username  string `json:"username,omitempty"`
-	FirstName string `json:"first_name,omitempty"`
-	ChatType  string `json:"chat_type,omitempty"`
-	Name      string `json:"name,omitempty"`
-	TargetID  uint64 `json:"target_id,omitempty"`
-	Reason    string `json:"reason,omitempty"`
-	Code      string `json:"code,omitempty"`
-	Duration  string `json:"duration,omitempty"`
+	UserID    uint64 `json:"user_id" example:"123456789"`
+	Username  string `json:"username,omitempty" example:"egorka"`
+	FirstName string `json:"first_name,omitempty" example:"Egor"`
+	ChatType  string `json:"chat_type,omitempty" example:"private"`
+	Name      string `json:"name,omitempty" example:"FlorenSquad"`
+	TargetID  uint64 `json:"target_id,omitempty" example:"987654321"`
+	Reason    string `json:"reason,omitempty" example:"нарушение правил клана"`
+	Code      string `json:"code,omitempty" example:"INVITE123"`
+	Duration  string `json:"duration,omitempty" example:"12h"`
 }
 
 type clanAPIResponse struct {
-	OK    bool   `json:"ok"`
+	OK    bool   `json:"ok" example:"true"`
 	Data  any    `json:"data,omitempty"`
 	Error string `json:"error,omitempty"`
 	Code  string `json:"code,omitempty"`
@@ -106,8 +107,16 @@ func isDebugEnabled() bool {
 	return v == "1" || v == "true" || v == "yes"
 }
 
-
-// GetMyClan — GET /api/v1/clans/me?user_id=...
+// GetMyClan godoc
+// @Summary Текущий клан пользователя
+// @Description Возвращает информацию о клане, в котором состоит пользователь
+// @Tags clans
+// @Produce json
+// @Param user_id query int true "ID пользователя"
+// @Success 200 {object} clanAPIResponse
+// @Failure 400 {object} clanAPIResponse
+// @Failure 404 {object} clanAPIResponse
+// @Router /api/v1/clans/me [get]
 func (h *ClanHandler) GetMyClan(w http.ResponseWriter, r *http.Request) {
 	userID, err := parseUserIDParam(r)
 	if err != nil {
@@ -147,7 +156,20 @@ func (h *ClanHandler) GetMyClan(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// CreateClan — POST /api/v1/clans
+// CreateClan godoc
+// @Summary Создание клана
+// @Description Создаёт новый клан при достаточном балансе пользователя (стоимость 1000)
+// @Tags clans
+// @Accept json
+// @Produce json
+// @Param request body clanRequest true "Данные для создания клана"
+// @Success 201 {object} clanAPIResponse
+// @Failure 400 {object} clanAPIResponse
+// @Failure 401 {object} clanAPIResponse
+// @Failure 402 {object} clanAPIResponse
+// @Failure 409 {object} clanAPIResponse
+// @Failure 500 {object} clanAPIResponse
+// @Router /api/v1/clans [post]
 func (h *ClanHandler) CreateClan(w http.ResponseWriter, r *http.Request) {
 	req, err := decodeClanRequest(r)
 	if err != nil {
@@ -205,7 +227,18 @@ func (h *ClanHandler) CreateClan(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// GetMyMembers — GET /api/v1/clans/me/members?user_id=...&filter=active|noactive
+// GetMyMembers godoc
+// @Summary Участники клана
+// @Description Возвращает список участников клана текущего пользователя с фильтрацией active или noactive
+// @Tags clans
+// @Produce json
+// @Param user_id query int true "ID пользователя"
+// @Param filter query string false "Фильтр участников (active или noactive)" default(active)
+// @Success 200 {object} clanAPIResponse
+// @Failure 400 {object} clanAPIResponse
+// @Failure 404 {object} clanAPIResponse
+// @Failure 500 {object} clanAPIResponse
+// @Router /api/v1/clans/me/members [get]
 func (h *ClanHandler) GetMyMembers(w http.ResponseWriter, r *http.Request) {
 	userID, err := parseUserIDParam(r)
 	if err != nil {
@@ -269,7 +302,17 @@ func (h *ClanHandler) GetMyMembers(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// GetMyRole — GET /api/v1/clans/me/role?user_id=...
+// GetMyRole godoc
+// @Summary Роль пользователя в клане
+// @Description Возвращает текущую роль пользователя в его клане
+// @Tags clans
+// @Produce json
+// @Param user_id query int true "ID пользователя"
+// @Success 200 {object} clanAPIResponse
+// @Failure 400 {object} clanAPIResponse
+// @Failure 404 {object} clanAPIResponse
+// @Failure 500 {object} clanAPIResponse
+// @Router /api/v1/clans/me/role [get]
 func (h *ClanHandler) GetMyRole(w http.ResponseWriter, r *http.Request) {
 	userID, err := parseUserIDParam(r)
 	if err != nil {
@@ -303,7 +346,19 @@ func (h *ClanHandler) GetMyRole(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// KickMember — POST /api/v1/clans/me/kick
+// KickMember godoc
+// @Summary Исключение участника из клана
+// @Description Исключает целевого участника из клана по причине (доступно admin и owner)
+// @Tags clans
+// @Accept json
+// @Produce json
+// @Param request body clanRequest true "Параметры исключения участника"
+// @Success 200 {object} clanAPIResponse
+// @Failure 400 {object} clanAPIResponse
+// @Failure 403 {object} clanAPIResponse
+// @Failure 404 {object} clanAPIResponse
+// @Failure 500 {object} clanAPIResponse
+// @Router /api/v1/clans/me/kick [post]
 func (h *ClanHandler) KickMember(w http.ResponseWriter, r *http.Request) {
 	req, err := decodeClanRequest(r)
 	if err != nil {
@@ -364,7 +419,14 @@ func (h *ClanHandler) KickMember(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ListClans — GET /api/v1/clans
+// ListClans godoc
+// @Summary Список всех кланов
+// @Description Возвращает список всех зарегистрированных кланов
+// @Tags clans
+// @Produce json
+// @Success 200 {object} clanAPIResponse
+// @Failure 500 {object} clanAPIResponse
+// @Router /api/v1/clans [get]
 func (h *ClanHandler) ListClans(w http.ResponseWriter, r *http.Request) {
 	debugType := isDebugEnabled()
 
@@ -385,7 +447,19 @@ func (h *ClanHandler) ListClans(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// BanMember — POST /api/v1/clans/me/ban
+// BanMember godoc
+// @Summary Блокировка участника в клане
+// @Description Блокирует целевого участника в клане с указанием причины (доступно admin и owner)
+// @Tags clans
+// @Accept json
+// @Produce json
+// @Param request body clanRequest true "Параметры блокировки участника"
+// @Success 200 {object} clanAPIResponse
+// @Failure 400 {object} clanAPIResponse
+// @Failure 403 {object} clanAPIResponse
+// @Failure 404 {object} clanAPIResponse
+// @Failure 500 {object} clanAPIResponse
+// @Router /api/v1/clans/me/ban [post]
 func (h *ClanHandler) BanMember(w http.ResponseWriter, r *http.Request) {
 	req, err := decodeClanRequest(r)
 	if err != nil {
@@ -443,7 +517,18 @@ func (h *ClanHandler) BanMember(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// DeleteMyClan — DELETE /api/v1/clans/me?user_id=...
+// DeleteMyClan godoc
+// @Summary Удаление своего клана
+// @Description Удаляет клан, если пользователь является его владельцем
+// @Tags clans
+// @Produce json
+// @Param user_id query int true "ID пользователя"
+// @Success 200 {object} clanAPIResponse
+// @Failure 400 {object} clanAPIResponse
+// @Failure 403 {object} clanAPIResponse
+// @Failure 404 {object} clanAPIResponse
+// @Failure 500 {object} clanAPIResponse
+// @Router /api/v1/clans/me [delete]
 func (h *ClanHandler) DeleteMyClan(w http.ResponseWriter, r *http.Request) {
 	userID, err := parseUserIDParam(r)
 	if err != nil {
@@ -479,7 +564,20 @@ func (h *ClanHandler) DeleteMyClan(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// JoinByInvite — POST /api/v1/clans/join
+// JoinByInvite godoc
+// @Summary Вступление в клан по инвайт-коду
+// @Description Добавляет пользователя в клан по коду приглашения (только вне групповых чатов)
+// @Tags clans
+// @Accept json
+// @Produce json
+// @Param request body clanRequest true "Данные для вступления в клан"
+// @Success 200 {object} clanAPIResponse
+// @Failure 400 {object} clanAPIResponse
+// @Failure 403 {object} clanAPIResponse
+// @Failure 404 {object} clanAPIResponse
+// @Failure 409 {object} clanAPIResponse
+// @Failure 500 {object} clanAPIResponse
+// @Router /api/v1/clans/join [post]
 func (h *ClanHandler) JoinByInvite(w http.ResponseWriter, r *http.Request) {
 	req, err := decodeClanRequest(r)
 	if err != nil {
@@ -538,7 +636,19 @@ func (h *ClanHandler) JoinByInvite(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// RevokeInviteCode — POST /api/v1/clans/me/invite-code/revoke
+// RevokeInviteCode godoc
+// @Summary Перевыпуск инвайт-кода клана
+// @Description Отзывает текущий инвайт-код и выпускает новый (доступно admin и owner)
+// @Tags clans
+// @Accept json
+// @Produce json
+// @Param request body clanRequest true "Данные пользователя и тип чата"
+// @Success 200 {object} clanAPIResponse
+// @Failure 400 {object} clanAPIResponse
+// @Failure 403 {object} clanAPIResponse
+// @Failure 404 {object} clanAPIResponse
+// @Failure 500 {object} clanAPIResponse
+// @Router /api/v1/clans/me/invite-code/revoke [post]
 func (h *ClanHandler) RevokeInviteCode(w http.ResponseWriter, r *http.Request) {
 	req, err := decodeClanRequest(r)
 	if err != nil {
@@ -586,7 +696,19 @@ func (h *ClanHandler) RevokeInviteCode(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// DeleteInviteCode — DELETE /api/v1/clans/me/invite-code?user_id=...&chat_type=...
+// DeleteInviteCode godoc
+// @Summary Удаление инвайт-кода клана
+// @Description Удаляет действующий инвайт-код клана (доступно admin и owner)
+// @Tags clans
+// @Produce json
+// @Param user_id query int true "ID пользователя"
+// @Param chat_type query string false "Тип чата"
+// @Success 200 {object} clanAPIResponse
+// @Failure 400 {object} clanAPIResponse
+// @Failure 403 {object} clanAPIResponse
+// @Failure 404 {object} clanAPIResponse
+// @Failure 500 {object} clanAPIResponse
+// @Router /api/v1/clans/me/invite-code [delete]
 func (h *ClanHandler) DeleteInviteCode(w http.ResponseWriter, r *http.Request) {
 	userID, err := parseUserIDParam(r)
 	if err != nil {
@@ -632,7 +754,19 @@ func (h *ClanHandler) DeleteInviteCode(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// CreateInviteCode — POST /api/v1/clans/me/invite-code
+// CreateInviteCode godoc
+// @Summary Создание инвайт-кода клана
+// @Description Генерирует и сохраняет новый инвайт-код для клана (доступно admin и owner)
+// @Tags clans
+// @Accept json
+// @Produce json
+// @Param request body clanRequest true "Данные пользователя и тип чата"
+// @Success 201 {object} clanAPIResponse
+// @Failure 400 {object} clanAPIResponse
+// @Failure 403 {object} clanAPIResponse
+// @Failure 404 {object} clanAPIResponse
+// @Failure 500 {object} clanAPIResponse
+// @Router /api/v1/clans/me/invite-code [post]
 func (h *ClanHandler) CreateInviteCode(w http.ResponseWriter, r *http.Request) {
 	req, err := decodeClanRequest(r)
 	if err != nil {
@@ -680,7 +814,20 @@ func (h *ClanHandler) CreateInviteCode(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// SetInviteExpire — POST /api/v1/clans/me/invite-code/expire
+// SetInviteExpire godoc
+// @Summary Установка срока действия инвайт-кода
+// @Description Задаёт время жизни инвайт-кода клана и сохраняет таймер в Redis
+// @Tags clans
+// @Accept json
+// @Produce json
+// @Param request body clanRequest true "Данные пользователя, тип чата и длительность"
+// @Success 200 {object} clanAPIResponse
+// @Failure 400 {object} clanAPIResponse
+// @Failure 403 {object} clanAPIResponse
+// @Failure 404 {object} clanAPIResponse
+// @Failure 500 {object} clanAPIResponse
+// @Failure 503 {object} clanAPIResponse
+// @Router /api/v1/clans/me/invite-code/expire [post]
 func (h *ClanHandler) SetInviteExpire(w http.ResponseWriter, r *http.Request) {
 	req, err := decodeClanRequest(r)
 	if err != nil {
@@ -753,7 +900,20 @@ func (h *ClanHandler) SetInviteExpire(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// DeleteInviteExpire — DELETE /api/v1/clans/me/invite-code/expire?user_id=...&chat_type=...
+// DeleteInviteExpire godoc
+// @Summary Удаление срока действия инвайт-кода
+// @Description Удаляет активный таймер истечения инвайт-кода клана из Redis
+// @Tags clans
+// @Produce json
+// @Param user_id query int true "ID пользователя"
+// @Param chat_type query string false "Тип чата"
+// @Success 200 {object} clanAPIResponse
+// @Failure 400 {object} clanAPIResponse
+// @Failure 403 {object} clanAPIResponse
+// @Failure 404 {object} clanAPIResponse
+// @Failure 500 {object} clanAPIResponse
+// @Failure 503 {object} clanAPIResponse
+// @Router /api/v1/clans/me/invite-code/expire [delete]
 func (h *ClanHandler) DeleteInviteExpire(w http.ResponseWriter, r *http.Request) {
 	userID, err := parseUserIDParam(r)
 	if err != nil {
@@ -810,7 +970,19 @@ func (h *ClanHandler) DeleteInviteExpire(w http.ResponseWriter, r *http.Request)
 	})
 }
 
-// LeaveClan — POST /api/v1/clans/leave
+// LeaveClan godoc
+// @Summary Выход из клана
+// @Description Позволяет участнику (кроме владельца) выйти из текущего клана
+// @Tags clans
+// @Accept json
+// @Produce json
+// @Param request body clanRequest true "ID пользователя"
+// @Success 200 {object} clanAPIResponse
+// @Failure 400 {object} clanAPIResponse
+// @Failure 404 {object} clanAPIResponse
+// @Failure 409 {object} clanAPIResponse
+// @Failure 500 {object} clanAPIResponse
+// @Router /api/v1/clans/leave [post]
 func (h *ClanHandler) LeaveClan(w http.ResponseWriter, r *http.Request) {
 	req, err := decodeClanRequest(r)
 	if err != nil {
@@ -857,7 +1029,18 @@ func (h *ClanHandler) LeaveClan(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// GetInviteCode — GET /api/v1/clans/me/invite-code?user_id=...
+// GetInviteCode godoc
+// @Summary Получение инвайт-кода клана
+// @Description Возвращает текущий инвайт-код клана (доступно admin и owner)
+// @Tags clans
+// @Produce json
+// @Param user_id query int true "ID пользователя"
+// @Success 200 {object} clanAPIResponse
+// @Failure 400 {object} clanAPIResponse
+// @Failure 403 {object} clanAPIResponse
+// @Failure 404 {object} clanAPIResponse
+// @Failure 500 {object} clanAPIResponse
+// @Router /api/v1/clans/me/invite-code [get]
 func (h *ClanHandler) GetInviteCode(w http.ResponseWriter, r *http.Request) {
 	userID, err := parseUserIDParam(r)
 	if err != nil {
