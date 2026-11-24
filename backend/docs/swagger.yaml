@@ -12,6 +12,73 @@ definitions:
         example: egorka
         type: string
     type: object
+  backend_routes_handlers.clanAPIResponse:
+    properties:
+      code:
+        type: string
+      data: {}
+      error:
+        type: string
+      ok:
+        example: true
+        type: boolean
+    type: object
+  backend_routes_handlers.clanRequest:
+    properties:
+      chat_type:
+        example: private
+        type: string
+      code:
+        example: INVITE123
+        type: string
+      duration:
+        example: 12h
+        type: string
+      first_name:
+        example: Egor
+        type: string
+      name:
+        example: FlorenSquad
+        type: string
+      reason:
+        example: нарушение правил клана
+        type: string
+      target_id:
+        example: 987654321
+        type: integer
+      user_id:
+        example: 123456789
+        type: integer
+      username:
+        example: egorka
+        type: string
+    type: object
+  backend_routes_handlers.moderAPIResponse:
+    properties:
+      code:
+        type: string
+      data: {}
+      error:
+        type: string
+      ok:
+        example: true
+        type: boolean
+    type: object
+  backend_routes_handlers.prepareMuteRequest:
+    properties:
+      duration_str:
+        example: 1h
+        type: string
+      reason:
+        example: флуд
+        type: string
+      reply_user_id:
+        example: 123456789
+        type: integer
+      username_arg:
+        example: '@egorka'
+        type: string
+    type: object
   backend_routes_handlers.profileInitRequest:
     properties:
       first_name:
@@ -22,6 +89,71 @@ definitions:
         type: integer
       username:
         example: egorka
+        type: string
+    type: object
+  backend_routes_handlers.promoAPIResponse:
+    properties:
+      code:
+        type: string
+      data: {}
+      error:
+        type: string
+      ok:
+        example: true
+        type: boolean
+    type: object
+  backend_routes_handlers.promoRequest:
+    properties:
+      amount:
+        example: 500
+        type: number
+      amount_int:
+        example: 500
+        type: integer
+      chat_id:
+        example: -1001234567890
+        type: integer
+      code:
+        example: FLOREN2026
+        type: string
+      duration:
+        example: 24h
+        type: string
+      first_name:
+        example: Egor
+        type: string
+      user_id:
+        example: 123456789
+        type: integer
+      username:
+        example: egorka
+        type: string
+    type: object
+  backend_routes_handlers.promoStatItem:
+    properties:
+      code:
+        example: FLOREN2026
+        type: string
+      created_at:
+        example: 24.11.2026
+        type: string
+      updated_at:
+        example: '-'
+        type: string
+      users:
+        example: 15
+        type: integer
+    type: object
+  backend_routes_handlers.resolveTargetRequest:
+    properties:
+      reason:
+        example: спам
+        type: string
+      reply_user_id:
+        example: 123456789
+        type: integer
+      username_arg:
+        example: '@egorka'
         type: string
     type: object
   backend_routes_handlers.standardAPIResponse:
@@ -153,6 +285,1001 @@ info:
   title: FlorenBot REST API
   version: "1.0"
 paths:
+  /api/v1/clans:
+    get:
+      description: Возвращает список всех зарегистрированных кланов
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+      summary: Список всех кланов
+      tags:
+      - clans
+    post:
+      consumes:
+      - application/json
+      description: Создаёт новый клан при достаточном балансе пользователя (стоимость
+        1000)
+      parameters:
+      - description: Данные для создания клана
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/backend_routes_handlers.clanRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "402":
+          description: Payment Required
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+      summary: Создание клана
+      tags:
+      - clans
+  /api/v1/clans/join:
+    post:
+      consumes:
+      - application/json
+      description: Добавляет пользователя в клан по коду приглашения (только вне групповых
+        чатов)
+      parameters:
+      - description: Данные для вступления в клан
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/backend_routes_handlers.clanRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+      summary: Вступление в клан по инвайт-коду
+      tags:
+      - clans
+  /api/v1/clans/leave:
+    post:
+      consumes:
+      - application/json
+      description: Позволяет участнику (кроме владельца) выйти из текущего клана
+      parameters:
+      - description: ID пользователя
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/backend_routes_handlers.clanRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+      summary: Выход из клана
+      tags:
+      - clans
+  /api/v1/clans/me:
+    delete:
+      description: Удаляет клан, если пользователь является его владельцем
+      parameters:
+      - description: ID пользователя
+        in: query
+        name: user_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+      summary: Удаление своего клана
+      tags:
+      - clans
+    get:
+      description: Возвращает информацию о клане, в котором состоит пользователь
+      parameters:
+      - description: ID пользователя
+        in: query
+        name: user_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+      summary: Текущий клан пользователя
+      tags:
+      - clans
+  /api/v1/clans/me/ban:
+    post:
+      consumes:
+      - application/json
+      description: Блокирует целевого участника в клане с указанием причины (доступно
+        admin и owner)
+      parameters:
+      - description: Параметры блокировки участника
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/backend_routes_handlers.clanRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+      summary: Блокировка участника в клане
+      tags:
+      - clans
+  /api/v1/clans/me/invite-code:
+    delete:
+      description: Удаляет действующий инвайт-код клана (доступно admin и owner)
+      parameters:
+      - description: ID пользователя
+        in: query
+        name: user_id
+        required: true
+        type: integer
+      - description: Тип чата
+        in: query
+        name: chat_type
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+      summary: Удаление инвайт-кода клана
+      tags:
+      - clans
+    get:
+      description: Возвращает текущий инвайт-код клана (доступно admin и owner)
+      parameters:
+      - description: ID пользователя
+        in: query
+        name: user_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+      summary: Получение инвайт-кода клана
+      tags:
+      - clans
+    post:
+      consumes:
+      - application/json
+      description: Генерирует и сохраняет новый инвайт-код для клана (доступно admin
+        и owner)
+      parameters:
+      - description: Данные пользователя и тип чата
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/backend_routes_handlers.clanRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+      summary: Создание инвайт-кода клана
+      tags:
+      - clans
+  /api/v1/clans/me/invite-code/expire:
+    delete:
+      description: Удаляет активный таймер истечения инвайт-кода клана из Redis
+      parameters:
+      - description: ID пользователя
+        in: query
+        name: user_id
+        required: true
+        type: integer
+      - description: Тип чата
+        in: query
+        name: chat_type
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+      summary: Удаление срока действия инвайт-кода
+      tags:
+      - clans
+    post:
+      consumes:
+      - application/json
+      description: Задаёт время жизни инвайт-кода клана и сохраняет таймер в Redis
+      parameters:
+      - description: Данные пользователя, тип чата и длительность
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/backend_routes_handlers.clanRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+      summary: Установка срока действия инвайт-кода
+      tags:
+      - clans
+  /api/v1/clans/me/invite-code/revoke:
+    post:
+      consumes:
+      - application/json
+      description: Отзывает текущий инвайт-код и выпускает новый (доступно admin и
+        owner)
+      parameters:
+      - description: Данные пользователя и тип чата
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/backend_routes_handlers.clanRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+      summary: Перевыпуск инвайт-кода клана
+      tags:
+      - clans
+  /api/v1/clans/me/kick:
+    post:
+      consumes:
+      - application/json
+      description: Исключает целевого участника из клана по причине (доступно admin
+        и owner)
+      parameters:
+      - description: Параметры исключения участника
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/backend_routes_handlers.clanRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+      summary: Исключение участника из клана
+      tags:
+      - clans
+  /api/v1/clans/me/members:
+    get:
+      description: Возвращает список участников клана текущего пользователя с фильтрацией
+        active или noactive
+      parameters:
+      - description: ID пользователя
+        in: query
+        name: user_id
+        required: true
+        type: integer
+      - default: active
+        description: Фильтр участников (active или noactive)
+        in: query
+        name: filter
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+      summary: Участники клана
+      tags:
+      - clans
+  /api/v1/clans/me/role:
+    get:
+      description: Возвращает текущую роль пользователя в его клане
+      parameters:
+      - description: ID пользователя
+        in: query
+        name: user_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.clanAPIResponse'
+      summary: Роль пользователя в клане
+      tags:
+      - clans
+  /api/v1/moders/delete-check:
+    get:
+      description: Проверяет корректность user_id и chat_id, а также наличие пользователя
+        и чата в БД
+      parameters:
+      - description: ID пользователя
+        in: query
+        name: user_id
+        required: true
+        type: integer
+      - description: ID чата
+        in: query
+        name: chat_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.moderAPIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.moderAPIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.moderAPIResponse'
+      summary: Проверка прав и данных для удаления сообщения
+      tags:
+      - moders
+  /api/v1/moders/mute/prepare:
+    post:
+      consumes:
+      - application/json
+      description: Вычисляет timestamp окончания мута (until_date) и отображаемое
+        имя пользователя
+      parameters:
+      - description: Параметры мута
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/backend_routes_handlers.prepareMuteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.moderAPIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.moderAPIResponse'
+      summary: Подготовка параметров мута
+      tags:
+      - moders
+  /api/v1/moders/resolve-target:
+    post:
+      consumes:
+      - application/json
+      description: Разрешает ID пользователя по reply_user_id или username_arg и возвращает
+        данные профиля из БД
+      parameters:
+      - description: Параметры поиска пользователя
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/backend_routes_handlers.resolveTargetRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.moderAPIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.moderAPIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.moderAPIResponse'
+      summary: Определение целевого пользователя для модерации
+      tags:
+      - moders
+  /api/v1/promos:
+    get:
+      description: Возвращает промокоды, созданные указанным пользователем
+      parameters:
+      - description: ID пользователя
+        in: query
+        name: user_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+      summary: Список промокодов пользователя
+      tags:
+      - promos
+    post:
+      consumes:
+      - application/json
+      description: Создаёт новый промокод при достаточном балансе пользователя (минимум
+        2000)
+      parameters:
+      - description: Данные для создания промокода
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/backend_routes_handlers.promoRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+        "402":
+          description: Payment Required
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+      summary: Создание промокода
+      tags:
+      - promos
+  /api/v1/promos/{code}:
+    delete:
+      description: Удаляет промокод по коду (доступно владельцу промокода или создателю
+        чата)
+      parameters:
+      - description: Код промокода
+        in: path
+        name: code
+        required: true
+        type: string
+      - description: ID пользователя
+        in: query
+        name: user_id
+        required: true
+        type: integer
+      - description: ID чата
+        in: query
+        name: chat_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+      summary: Удаление промокода
+      tags:
+      - promos
+    patch:
+      consumes:
+      - application/json
+      description: Обновляет параметры промокода его владельцем
+      parameters:
+      - description: Код промокода
+        in: path
+        name: code
+        required: true
+        type: string
+      - description: Новые параметры промокода
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/backend_routes_handlers.promoRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+      summary: Редактирование промокода
+      tags:
+      - promos
+  /api/v1/promos/{code}/expire:
+    delete:
+      description: Снимает ограничение по времени с промокода и удаляет таймер из
+        Redis
+      parameters:
+      - description: Код промокода
+        in: path
+        name: code
+        required: true
+        type: string
+      - description: ID пользователя
+        in: query
+        name: user_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+      summary: Удаление срока действия промокода
+      tags:
+      - promos
+    post:
+      consumes:
+      - application/json
+      description: Задаёт время истечения промокода и сохраняет таймер в Redis
+      parameters:
+      - description: Код промокода
+        in: path
+        name: code
+        required: true
+        type: string
+      - description: Длительность действия промокода
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/backend_routes_handlers.promoRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+      summary: Установка срока действия промокода
+      tags:
+      - promos
+  /api/v1/promos/activate:
+    post:
+      consumes:
+      - application/json
+      description: Активирует промокод для пользователя и начисляет бонус на баланс
+      parameters:
+      - description: Данные для активации промокода
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/backend_routes_handlers.promoRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+      summary: Активация промокода
+      tags:
+      - promos
+  /api/v1/promos/stats:
+    get:
+      description: Возвращает статистику активаций и дат создания/обновления промокодов
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+            - properties:
+                data:
+                  additionalProperties:
+                    items:
+                      $ref: '#/definitions/backend_routes_handlers.promoStatItem'
+                    type: array
+                  type: object
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/backend_routes_handlers.promoAPIResponse'
+      summary: Статистика по промокодам
+      tags:
+      - promos
   /api/v1/standard/balance:
     get:
       description: Возвращает текущий баланс пользователя

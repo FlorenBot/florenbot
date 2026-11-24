@@ -15,6 +15,1497 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/api/v1/clans": {
+            "get": {
+                "description": "Возвращает список всех зарегистрированных кланов",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "clans"
+                ],
+                "summary": "Список всех кланов",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Создаёт новый клан при достаточном балансе пользователя (стоимость 1000)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "clans"
+                ],
+                "summary": "Создание клана",
+                "parameters": [
+                    {
+                        "description": "Данные для создания клана",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/clans/join": {
+            "post": {
+                "description": "Добавляет пользователя в клан по коду приглашения (только вне групповых чатов)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "clans"
+                ],
+                "summary": "Вступление в клан по инвайт-коду",
+                "parameters": [
+                    {
+                        "description": "Данные для вступления в клан",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/clans/leave": {
+            "post": {
+                "description": "Позволяет участнику (кроме владельца) выйти из текущего клана",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "clans"
+                ],
+                "summary": "Выход из клана",
+                "parameters": [
+                    {
+                        "description": "ID пользователя",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/clans/me": {
+            "get": {
+                "description": "Возвращает информацию о клане, в котором состоит пользователь",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "clans"
+                ],
+                "summary": "Текущий клан пользователя",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID пользователя",
+                        "name": "user_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Удаляет клан, если пользователь является его владельцем",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "clans"
+                ],
+                "summary": "Удаление своего клана",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID пользователя",
+                        "name": "user_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/clans/me/ban": {
+            "post": {
+                "description": "Блокирует целевого участника в клане с указанием причины (доступно admin и owner)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "clans"
+                ],
+                "summary": "Блокировка участника в клане",
+                "parameters": [
+                    {
+                        "description": "Параметры блокировки участника",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/clans/me/invite-code": {
+            "get": {
+                "description": "Возвращает текущий инвайт-код клана (доступно admin и owner)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "clans"
+                ],
+                "summary": "Получение инвайт-кода клана",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID пользователя",
+                        "name": "user_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Генерирует и сохраняет новый инвайт-код для клана (доступно admin и owner)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "clans"
+                ],
+                "summary": "Создание инвайт-кода клана",
+                "parameters": [
+                    {
+                        "description": "Данные пользователя и тип чата",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Удаляет действующий инвайт-код клана (доступно admin и owner)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "clans"
+                ],
+                "summary": "Удаление инвайт-кода клана",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID пользователя",
+                        "name": "user_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Тип чата",
+                        "name": "chat_type",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/clans/me/invite-code/expire": {
+            "post": {
+                "description": "Задаёт время жизни инвайт-кода клана и сохраняет таймер в Redis",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "clans"
+                ],
+                "summary": "Установка срока действия инвайт-кода",
+                "parameters": [
+                    {
+                        "description": "Данные пользователя, тип чата и длительность",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Удаляет активный таймер истечения инвайт-кода клана из Redis",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "clans"
+                ],
+                "summary": "Удаление срока действия инвайт-кода",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID пользователя",
+                        "name": "user_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Тип чата",
+                        "name": "chat_type",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/clans/me/invite-code/revoke": {
+            "post": {
+                "description": "Отзывает текущий инвайт-код и выпускает новый (доступно admin и owner)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "clans"
+                ],
+                "summary": "Перевыпуск инвайт-кода клана",
+                "parameters": [
+                    {
+                        "description": "Данные пользователя и тип чата",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/clans/me/kick": {
+            "post": {
+                "description": "Исключает целевого участника из клана по причине (доступно admin и owner)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "clans"
+                ],
+                "summary": "Исключение участника из клана",
+                "parameters": [
+                    {
+                        "description": "Параметры исключения участника",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/clans/me/members": {
+            "get": {
+                "description": "Возвращает список участников клана текущего пользователя с фильтрацией active или noactive",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "clans"
+                ],
+                "summary": "Участники клана",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID пользователя",
+                        "name": "user_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "active",
+                        "description": "Фильтр участников (active или noactive)",
+                        "name": "filter",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/clans/me/role": {
+            "get": {
+                "description": "Возвращает текущую роль пользователя в его клане",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "clans"
+                ],
+                "summary": "Роль пользователя в клане",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID пользователя",
+                        "name": "user_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.clanAPIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/moders/delete-check": {
+            "get": {
+                "description": "Проверяет корректность user_id и chat_id, а также наличие пользователя и чата в БД",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "moders"
+                ],
+                "summary": "Проверка прав и данных для удаления сообщения",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID пользователя",
+                        "name": "user_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID чата",
+                        "name": "chat_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.moderAPIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.moderAPIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.moderAPIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/moders/mute/prepare": {
+            "post": {
+                "description": "Вычисляет timestamp окончания мута (until_date) и отображаемое имя пользователя",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "moders"
+                ],
+                "summary": "Подготовка параметров мута",
+                "parameters": [
+                    {
+                        "description": "Параметры мута",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.prepareMuteRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.moderAPIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.moderAPIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/moders/resolve-target": {
+            "post": {
+                "description": "Разрешает ID пользователя по reply_user_id или username_arg и возвращает данные профиля из БД",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "moders"
+                ],
+                "summary": "Определение целевого пользователя для модерации",
+                "parameters": [
+                    {
+                        "description": "Параметры поиска пользователя",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.resolveTargetRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.moderAPIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.moderAPIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.moderAPIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/promos": {
+            "get": {
+                "description": "Возвращает промокоды, созданные указанным пользователем",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "promos"
+                ],
+                "summary": "Список промокодов пользователя",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID пользователя",
+                        "name": "user_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Создаёт новый промокод при достаточном балансе пользователя (минимум 2000)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "promos"
+                ],
+                "summary": "Создание промокода",
+                "parameters": [
+                    {
+                        "description": "Данные для создания промокода",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/promos/activate": {
+            "post": {
+                "description": "Активирует промокод для пользователя и начисляет бонус на баланс",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "promos"
+                ],
+                "summary": "Активация промокода",
+                "parameters": [
+                    {
+                        "description": "Данные для активации промокода",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/promos/stats": {
+            "get": {
+                "description": "Возвращает статистику активаций и дат создания/обновления промокодов",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "promos"
+                ],
+                "summary": "Статистика по промокодам",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "array",
+                                                "items": {
+                                                    "$ref": "#/definitions/backend_routes_handlers.promoStatItem"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/promos/{code}": {
+            "delete": {
+                "description": "Удаляет промокод по коду (доступно владельцу промокода или создателю чата)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "promos"
+                ],
+                "summary": "Удаление промокода",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Код промокода",
+                        "name": "code",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID пользователя",
+                        "name": "user_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID чата",
+                        "name": "chat_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Обновляет параметры промокода его владельцем",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "promos"
+                ],
+                "summary": "Редактирование промокода",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Код промокода",
+                        "name": "code",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Новые параметры промокода",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/promos/{code}/expire": {
+            "post": {
+                "description": "Задаёт время истечения промокода и сохраняет таймер в Redis",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "promos"
+                ],
+                "summary": "Установка срока действия промокода",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Код промокода",
+                        "name": "code",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Длительность действия промокода",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Снимает ограничение по времени с промокода и удаляет таймер из Redis",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "promos"
+                ],
+                "summary": "Удаление срока действия промокода",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Код промокода",
+                        "name": "code",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID пользователя",
+                        "name": "user_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.promoAPIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/standard/balance": {
             "get": {
                 "description": "Возвращает текущий баланс пользователя",
@@ -388,6 +1879,100 @@ const docTemplate = `{
                 }
             }
         },
+        "backend_routes_handlers.clanAPIResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "data": {},
+                "error": {
+                    "type": "string"
+                },
+                "ok": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "backend_routes_handlers.clanRequest": {
+            "type": "object",
+            "properties": {
+                "chat_type": {
+                    "type": "string",
+                    "example": "private"
+                },
+                "code": {
+                    "type": "string",
+                    "example": "INVITE123"
+                },
+                "duration": {
+                    "type": "string",
+                    "example": "12h"
+                },
+                "first_name": {
+                    "type": "string",
+                    "example": "Egor"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "FlorenSquad"
+                },
+                "reason": {
+                    "type": "string",
+                    "example": "нарушение правил клана"
+                },
+                "target_id": {
+                    "type": "integer",
+                    "example": 987654321
+                },
+                "user_id": {
+                    "type": "integer",
+                    "example": 123456789
+                },
+                "username": {
+                    "type": "string",
+                    "example": "egorka"
+                }
+            }
+        },
+        "backend_routes_handlers.moderAPIResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "data": {},
+                "error": {
+                    "type": "string"
+                },
+                "ok": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "backend_routes_handlers.prepareMuteRequest": {
+            "type": "object",
+            "properties": {
+                "duration_str": {
+                    "type": "string",
+                    "example": "1h"
+                },
+                "reason": {
+                    "type": "string",
+                    "example": "флуд"
+                },
+                "reply_user_id": {
+                    "type": "integer",
+                    "example": 123456789
+                },
+                "username_arg": {
+                    "type": "string",
+                    "example": "@egorka"
+                }
+            }
+        },
         "backend_routes_handlers.profileInitRequest": {
             "type": "object",
             "properties": {
@@ -402,6 +1987,97 @@ const docTemplate = `{
                 "username": {
                     "type": "string",
                     "example": "egorka"
+                }
+            }
+        },
+        "backend_routes_handlers.promoAPIResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "data": {},
+                "error": {
+                    "type": "string"
+                },
+                "ok": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "backend_routes_handlers.promoRequest": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number",
+                    "example": 500
+                },
+                "amount_int": {
+                    "type": "integer",
+                    "example": 500
+                },
+                "chat_id": {
+                    "type": "integer",
+                    "example": -1001234567890
+                },
+                "code": {
+                    "type": "string",
+                    "example": "FLOREN2026"
+                },
+                "duration": {
+                    "type": "string",
+                    "example": "24h"
+                },
+                "first_name": {
+                    "type": "string",
+                    "example": "Egor"
+                },
+                "user_id": {
+                    "type": "integer",
+                    "example": 123456789
+                },
+                "username": {
+                    "type": "string",
+                    "example": "egorka"
+                }
+            }
+        },
+        "backend_routes_handlers.promoStatItem": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "FLOREN2026"
+                },
+                "created_at": {
+                    "type": "string",
+                    "example": "24.11.2026"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "example": "-"
+                },
+                "users": {
+                    "type": "integer",
+                    "example": 15
+                }
+            }
+        },
+        "backend_routes_handlers.resolveTargetRequest": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "type": "string",
+                    "example": "спам"
+                },
+                "reply_user_id": {
+                    "type": "integer",
+                    "example": 123456789
+                },
+                "username_arg": {
+                    "type": "string",
+                    "example": "@egorka"
                 }
             }
         },
