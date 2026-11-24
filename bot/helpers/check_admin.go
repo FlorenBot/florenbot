@@ -6,7 +6,7 @@ import (
 	"net/url"
 
 	"florenbot/services"
-	"florenbot/structs"
+	"florenbot/backend/engine/structs"
 )
 
 // IsUserAdmin проверяет права администратора для объекта роли
