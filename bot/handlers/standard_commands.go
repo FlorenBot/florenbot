@@ -1,4 +1,4 @@
-package handlers
+ package handlers
 
 import (
 	"bytes"
@@ -18,8 +18,8 @@ import (
 	"time"
 
 	backend_structs "florenbot/backend/engine/structs"
-	consts "florenbot/consts"
 	std_helpers "florenbot/bot/helpers"
+	consts "florenbot/consts"
 	services "florenbot/services"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -48,11 +48,31 @@ type standardAPIResponse struct {
 	Error string `json:"error"`
 }
 
+func isStdDebug() bool {
+	return GetEnvBool("DEBUG", false)
+}
+
+func maskSecret(s string) string {
+	if s == "" {
+		return "<EMPTY>"
+	}
+	if len(s) <= 4 {
+		return "****"
+	}
+	return s[:2] + strings.Repeat("*", len(s)-4) + s[len(s)-2:]
+}
+
 func getBotSignatureSecret() string {
-	for _, key := range []string{"INTERNAL_API_SECRET", "API_SIGNATURE_SECRET"} {
+	for _, key := range []string{"APP_KEY", "INTERNAL_API_SECRET", "API_SIGNATURE_SECRET"} {
 		if val := strings.TrimSpace(os.Getenv(key)); val != "" {
+			if isStdDebug() {
+				log.Printf("[DEBUG][SIG] Секрет взят из %s (len=%d, masked=%s)", key, len(val), maskSecret(val))
+			}
 			return val
 		}
+	}
+	if isStdDebug() {
+		log.Printf("[DEBUG][SIG] Ни один секрет (APP_KEY, INTERNAL_API_SECRET, API_SIGNATURE_SECRET) не задан")
 	}
 	return ""
 }
@@ -60,6 +80,9 @@ func getBotSignatureSecret() string {
 func signStandardRequest(req *http.Request, body []byte) {
 	secret := getBotSignatureSecret()
 	if secret == "" {
+		if isStdDebug() {
+			log.Printf("[DEBUG][SIG] Подпись НЕ добавлена: пустой секрет для %s %s", req.Method, req.URL.Path)
+		}
 		return
 	}
 
@@ -73,8 +96,14 @@ func signStandardRequest(req *http.Request, body []byte) {
 	mac.Write([]byte("."))
 	mac.Write(body)
 
+	sig := hex.EncodeToString(mac.Sum(nil))
 	req.Header.Set("X-Timestamp", ts)
-	req.Header.Set("X-Signature", hex.EncodeToString(mac.Sum(nil)))
+	req.Header.Set("X-Signature", sig)
+
+	if isStdDebug() {
+		log.Printf("[DEBUG][SIG] Подписан запрос %s %s | ts=%s | path=%s | body_len=%d | sig=%s",
+			strings.ToUpper(req.Method), req.URL.String(), ts, req.URL.Path, len(body), sig)
+	}
 }
 
 func doStandardJSONRequestWithAuth(
@@ -86,11 +115,16 @@ func doStandardJSONRequestWithAuth(
 	payload any,
 	signed bool,
 ) (*standardAPIResponse, error) {
+	dbg := isStdDebug()
 	if apiClient == nil {
+		if dbg {
+			log.Printf("[DEBUG][HTTP] apiClient == nil для %s %s", method, path)
+		}
 		return nil, fmt.Errorf("api client is nil")
 	}
 
-	endpoint := getBackendBaseURL() + path
+	baseURL := getBackendBaseURL()
+	endpoint := baseURL + path
 	if len(query) > 0 {
 		endpoint += "?" + query.Encode()
 	}
@@ -100,6 +134,9 @@ func doStandardJSONRequestWithAuth(
 	if payload != nil {
 		b, err := json.Marshal(payload)
 		if err != nil {
+			if dbg {
+				log.Printf("[DEBUG][HTTP] Ошибка маршалинга payload для %s %s: %v", method, path, err)
+			}
 			return nil, err
 		}
 		rawBody = b
@@ -108,6 +145,9 @@ func doStandardJSONRequestWithAuth(
 
 	req, err := http.NewRequestWithContext(ctx, method, endpoint, bodyReader)
 	if err != nil {
+		if dbg {
+			log.Printf("[DEBUG][HTTP] Ошибка создания запроса %s %s: %v", method, endpoint, err)
+		}
 		return nil, err
 	}
 	if payload != nil {
@@ -115,23 +155,50 @@ func doStandardJSONRequestWithAuth(
 	}
 	if signed {
 		signStandardRequest(req, rawBody)
+	} else if dbg {
+		log.Printf("[DEBUG][HTTP] Запрос без подписи: %s %s", method, endpoint)
 	}
 
+	if dbg {
+		log.Printf("[DEBUG][HTTP] --> %s %s | signed=%v | X-Timestamp=%q | X-Signature=%q | body=%s",
+			method, endpoint, signed, req.Header.Get("X-Timestamp"), req.Header.Get("X-Signature"), string(rawBody))
+	}
+
+	start := time.Now()
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
+	elapsed := time.Since(start)
 	if err != nil {
+		if dbg {
+			log.Printf("[DEBUG][HTTP] <-- Ошибка выполнения %s %s за %v: %v", method, endpoint, elapsed, err)
+		}
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	raw, err := io.ReadAll(resp.Body)
 	if err != nil {
+		if dbg {
+			log.Printf("[DEBUG][HTTP] <-- Ошибка чтения тела ответа (status=%d) за %v: %v", resp.StatusCode, elapsed, err)
+		}
 		return nil, err
+	}
+
+	if dbg {
+		log.Printf("[DEBUG][HTTP] <-- %s %s | status=%d | elapsed=%v | raw_body=%s",
+			method, endpoint, resp.StatusCode, elapsed, string(raw))
 	}
 
 	var parsed standardAPIResponse
 	if err := json.Unmarshal(raw, &parsed); err != nil {
+		if dbg {
+			log.Printf("[DEBUG][HTTP] Ошибка парсинга JSON (status=%d): %v | raw=%s", resp.StatusCode, err, string(raw))
+		}
 		return nil, fmt.Errorf("decode response (status %d): %w", resp.StatusCode, err)
+	}
+
+	if dbg {
+		log.Printf("[DEBUG][HTTP] Распарсен ответ: ok=%v, code=%q, error=%q", parsed.OK, parsed.Code, parsed.Error)
 	}
 	return &parsed, nil
 }
@@ -150,6 +217,11 @@ func doStandardJSONRequest(
 func HandleHelp(bot *tgbotapi.BotAPI, apiClient *services.HTTPService, message *tgbotapi.Message) {
 	userID := uint64(message.From.ID)
 	chatID := message.Chat.ID
+	dbg := isStdDebug()
+
+	if dbg {
+		log.Printf("[DEBUG][HELP] Вызов /help: user_id=%d, chat_id=%d, chat_type=%s", userID, chatID, message.Chat.Type)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -166,7 +238,15 @@ func HandleHelp(bot *tgbotapi.BotAPI, apiClient *services.HTTPService, message *
 	roleShort := ""
 
 	apiResp, err := doStandardJSONRequest(ctx, apiClient, http.MethodGet, "/api/v1/standard/help-context", q, nil)
-	if err == nil && apiResp.OK {
+	if err != nil {
+		if dbg {
+			log.Printf("[DEBUG][HELP] Ошибка запроса help-context: %v", err)
+		}
+	} else if !apiResp.OK {
+		if dbg {
+			log.Printf("[DEBUG][HELP] help-context вернул ok=false: code=%q, error=%q", apiResp.Code, apiResp.Error)
+		}
+	} else {
 		if apiResp.Data.RoleName != "" {
 			roleName = apiResp.Data.RoleName
 		}
@@ -174,6 +254,10 @@ func HandleHelp(bot *tgbotapi.BotAPI, apiClient *services.HTTPService, message *
 		isAdmin = apiResp.Data.IsAdmin
 		isOwnerOrCreator = apiResp.Data.IsOwnerOrCreator
 		isCreator = apiResp.Data.IsCreator
+		if dbg {
+			log.Printf("[DEBUG][HELP] Контекст ролей: role=%q, short=%q, admin=%v, ownerOrCreator=%v, creator=%v",
+				roleName, roleShort, isAdmin, isOwnerOrCreator, isCreator)
+		}
 	}
 
 	info := fmt.Sprintf("👋 Привет! Твоя роль: *%s*\n\n", roleName)
@@ -216,33 +300,43 @@ func HandleHelp(bot *tgbotapi.BotAPI, apiClient *services.HTTPService, message *
 
 	msg := tgbotapi.NewMessage(message.Chat.ID, info)
 	msg.ParseMode = "Markdown"
-	_, _ = bot.Send(msg)
+	if _, sendErr := bot.Send(msg); sendErr != nil && dbg {
+		log.Printf("[DEBUG][HELP] Ошибка отправки сообщения в Telegram: %v", sendErr)
+	}
 }
 
 func HandleProfilePrivate(userID uint64, apiClient *services.HTTPService, bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
-	debugType := GetEnvBool("DEBUG", false)
+	debugType := isStdDebug()
 	if debugType {
-		log.Printf("Пользователь %s начал игровой клуб", message.From.FirstName)
+		log.Printf("[DEBUG][PROFILE_INIT] Пользователь %s (id=%d, username=%q) начал игровой клуб",
+			message.From.FirstName, userID, message.From.UserName)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	apiResp, err := doStandardJSONRequestWithAuth(ctx, apiClient, http.MethodPost, "/api/v1/standard/profile/init", nil, map[string]any{
+	payload := map[string]any{
 		"user_id":    userID,
 		"username":   message.From.UserName,
 		"first_name": message.From.FirstName,
-	}, true)
+	}
+
+	apiResp, err := doStandardJSONRequestWithAuth(ctx, apiClient, http.MethodPost, "/api/v1/standard/profile/init", nil, payload, true)
 	if err != nil || !apiResp.OK {
 		if debugType {
-			log.Printf("Ошибка при старте профиля: %v", err)
+			if apiResp != nil {
+				log.Printf("[DEBUG][PROFILE_INIT] Ошибка при старте профиля: err=%v, ok=%v, code=%q, error=%q",
+					err, apiResp.OK, apiResp.Code, apiResp.Error)
+			} else {
+				log.Printf("[DEBUG][PROFILE_INIT] Ошибка при старте профиля: err=%v, apiResp=<nil>", err)
+			}
 		}
 		_, _ = bot.Send(tgbotapi.NewMessage(message.Chat.ID, "❌ Не удалось получить профиль"))
 		return
 	}
 
 	if debugType {
-		log.Printf("Результат профиля: %+v", apiResp.Data.Profile)
+		log.Printf("[DEBUG][PROFILE_INIT] Результат профиля: %+v", apiResp.Data.Profile)
 	}
 
 	text := fmt.Sprintf("👋 **Приветствуем вас, %s!**\n\n"+
@@ -266,12 +360,20 @@ func HandleProfilePrivate(userID uint64, apiClient *services.HTTPService, bot *t
 
 	msg := tgbotapi.NewMessage(message.Chat.ID, text)
 	msg.ParseMode = "Markdown"
-	_, _ = bot.Send(msg)
+	if _, sendErr := bot.Send(msg); sendErr != nil && debugType {
+		log.Printf("[DEBUG][PROFILE_INIT] Ошибка отправки приветствия: %v", sendErr)
+	}
 }
 
 func HandleStart(bot *tgbotapi.BotAPI, apiClient *services.HTTPService, message *tgbotapi.Message) {
 	chatType := message.Chat.Type
 	chatID := message.Chat.ID
+	dbg := isStdDebug()
+
+	if dbg {
+		log.Printf("[DEBUG][START] Команда /start: user_id=%d, chat_id=%d, chat_type=%s, title=%q",
+			message.From.ID, chatID, chatType, message.Chat.Title)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -281,19 +383,27 @@ func HandleStart(bot *tgbotapi.BotAPI, apiClient *services.HTTPService, message 
 		HandleProfilePrivate(uint64(message.From.ID), apiClient, bot, message)
 
 	case "group", "supergroup":
-		apiResp, err := doStandardJSONRequest(ctx, apiClient, http.MethodPost, "/api/v1/standard/start/group", nil, map[string]any{
+		payload := map[string]any{
 			"user_id":    uint64(message.From.ID),
 			"username":   message.From.UserName,
 			"first_name": message.From.FirstName,
 			"chat_id":    chatID,
 			"chat_title": message.Chat.Title,
-		})
+		}
+		apiResp, err := doStandardJSONRequestWithAuth(ctx, apiClient, http.MethodPost, "/api/v1/standard/start/group", nil, payload, true)
 		if err != nil {
 			log.Printf("Ошибка при регистрации чата: %v", err)
+			if dbg {
+				log.Printf("[DEBUG][START] Детали ошибки start/group: chat_id=%d, err=%v", chatID, err)
+			}
 			_, _ = bot.Send(tgbotapi.NewMessage(chatID, "❌ Не удалось инициализировать ваш профиль или чат."))
 			return
 		}
 		if !apiResp.OK {
+			if dbg {
+				log.Printf("[DEBUG][START] start/group вернул ok=false: code=%q, error=%q, chat_id=%d",
+					apiResp.Code, apiResp.Error, chatID)
+			}
 			switch apiResp.Code {
 			case "USER_ERROR":
 				_, _ = bot.Send(tgbotapi.NewMessage(chatID, "❌ Не удалось инициализировать ваш профиль."))
@@ -313,15 +423,24 @@ func HandleStart(bot *tgbotapi.BotAPI, apiClient *services.HTTPService, message 
 			}
 		}
 
+		if dbg {
+			log.Printf("[DEBUG][START] Чат %d успешно зарегистрирован", chatID)
+		}
 		_, _ = bot.Send(tgbotapi.NewMessage(chatID, "✅ Чат успешно зарегистрирован!\n"+
 			"Роли инициализированы! Просмотреть роли можно командой /roles"))
 
 	default:
+		if dbg {
+			log.Printf("[DEBUG][START] Неизвестный тип чата: %q (chat_id=%d)", chatType, chatID)
+		}
 		_, _ = bot.Send(tgbotapi.NewMessage(message.Chat.ID, "❌ Неизвестный тип чата."))
 	}
 }
 
 func HandleInfo(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
+	if isStdDebug() {
+		log.Printf("[DEBUG][INFO] Запрошена информация о боте пользователем %d", message.From.ID)
+	}
 	_, _ = bot.Send(tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("Информация о боте\n\n"+
 		"Версия: %s\n"+
 		"Дата обновления: %s\n"+
@@ -331,6 +450,11 @@ func HandleInfo(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 
 func HandleBonus(bot *tgbotapi.BotAPI, apiClient *services.HTTPService, message *tgbotapi.Message) {
 	userID := uint64(message.From.ID)
+	dbg := isStdDebug()
+
+	if dbg {
+		log.Printf("[DEBUG][BONUS] Запрос бонуса: user_id=%d, chat_id=%d", userID, message.Chat.ID)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -345,6 +469,10 @@ func HandleBonus(bot *tgbotapi.BotAPI, apiClient *services.HTTPService, message 
 		return
 	}
 	if !apiResp.OK {
+		if dbg {
+			log.Printf("[DEBUG][BONUS] ok=false: code=%q, error=%q, remaining_hours=%.2f",
+				apiResp.Code, apiResp.Error, apiResp.Data.RemainingHours)
+		}
 		if apiResp.Code == "ALREADY_CLAIMED" {
 			msg := tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("Вы уже получили бонус. Попробуйте через %.0f часов.", apiResp.Data.RemainingHours))
 			_, _ = bot.Send(msg)
@@ -354,6 +482,9 @@ func HandleBonus(bot *tgbotapi.BotAPI, apiClient *services.HTTPService, message 
 		return
 	}
 
+	if dbg {
+		log.Printf("[DEBUG][BONUS] Выдан бонус=%d, новый баланс=%.2f", apiResp.Data.BonusAmount, apiResp.Data.NewBalance)
+	}
 	msg := tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("Вы получили ежедневный бонус: %d монет! Ваш новый баланс: %.0f", apiResp.Data.BonusAmount, apiResp.Data.NewBalance))
 	_, _ = bot.Send(msg)
 }
@@ -361,6 +492,11 @@ func HandleBonus(bot *tgbotapi.BotAPI, apiClient *services.HTTPService, message 
 func HandleVip(bot *tgbotapi.BotAPI, apiClient *services.HTTPService, message *tgbotapi.Message) {
 	chatID := message.Chat.ID
 	userID := uint64(message.From.ID)
+	dbg := isStdDebug()
+
+	if dbg {
+		log.Printf("[DEBUG][VIP] Запрос VIP: user_id=%d, chat_id=%d", userID, chatID)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -373,10 +509,16 @@ func HandleVip(bot *tgbotapi.BotAPI, apiClient *services.HTTPService, message *t
 		return
 	}
 	if !apiResp.OK {
+		if dbg {
+			log.Printf("[DEBUG][VIP] ok=false: code=%q, error=%q", apiResp.Code, apiResp.Error)
+		}
 		log.Printf("Ошибка VIP (%s): %s", apiResp.Code, apiResp.Error)
 		return
 	}
 
+	if dbg {
+		log.Printf("[DEBUG][VIP] Ответ VIP: is_vip=%v", apiResp.Data.IsVIP)
+	}
 	if apiResp.Data.IsVIP {
 		msg := tgbotapi.NewMessage(chatID, "Вы уже VIP!")
 		_, _ = bot.Send(msg)
@@ -388,6 +530,11 @@ func HandleVip(bot *tgbotapi.BotAPI, apiClient *services.HTTPService, message *t
 }
 
 func HandleTopBalance(bot *tgbotapi.BotAPI, apiClient *services.HTTPService, message *tgbotapi.Message) {
+	dbg := isStdDebug()
+	if dbg {
+		log.Printf("[DEBUG][TOP_BAL] Запрос топа балансов от user_id=%d, chat_id=%d", message.From.ID, message.Chat.ID)
+	}
+
 	msgProcessing := tgbotapi.NewMessage(message.Chat.ID, "Обработка....")
 	sentMsg, _ := bot.Send(msgProcessing)
 
@@ -397,11 +544,28 @@ func HandleTopBalance(bot *tgbotapi.BotAPI, apiClient *services.HTTPService, mes
 	q := url.Values{"limit": {"10"}}
 	apiResp, err := doStandardJSONRequest(ctx, apiClient, http.MethodGet, "/api/v1/standard/top/balance", q, nil)
 	if err != nil || !apiResp.OK {
+		if dbg {
+			log.Printf("[DEBUG][TOP_BAL] Ошибка: err=%v, ok=%v, code=%q, error=%q",
+				err, apiResp != nil && apiResp.OK, func() string {
+					if apiResp == nil {
+						return ""
+					}
+					return apiResp.Code
+				}(), func() string {
+					if apiResp == nil {
+						return ""
+					}
+					return apiResp.Error
+				}())
+		}
 		_, _ = bot.Send(tgbotapi.NewMessage(message.Chat.ID, "Ошибка доступа к базе данных."))
 		return
 	}
 
 	if len(apiResp.Data.Users) == 0 {
+		if dbg {
+			log.Printf("[DEBUG][TOP_BAL] Пустой список пользователей")
+		}
 		_, _ = bot.Send(tgbotapi.NewMessage(message.Chat.ID, "Список лидеров пока пуст."))
 		return
 	}
@@ -426,6 +590,7 @@ func HandleTopBalance(bot *tgbotapi.BotAPI, apiClient *services.HTTPService, mes
 }
 
 func HandleTopMessages(bot *tgbotapi.BotAPI, apiClient *services.HTTPService, message *tgbotapi.Message) {
+	dbg := isStdDebug()
 	log.Printf("Команда /topmsg вызвана пользователем %d", message.From.ID)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -434,11 +599,17 @@ func HandleTopMessages(bot *tgbotapi.BotAPI, apiClient *services.HTTPService, me
 	q := url.Values{"limit": {"10"}}
 	apiResp, err := doStandardJSONRequest(ctx, apiClient, http.MethodGet, "/api/v1/standard/top/messages", q, nil)
 	if err != nil || !apiResp.OK {
+		if dbg {
+			log.Printf("[DEBUG][TOP_MSG] Ошибка: err=%v, apiResp=%+v", err, apiResp)
+		}
 		_, _ = bot.Send(tgbotapi.NewMessage(message.Chat.ID, "Ошибка доступа к базе данных."))
 		return
 	}
 
 	if len(apiResp.Data.Users) == 0 {
+		if dbg {
+			log.Printf("[DEBUG][TOP_MSG] Пустой список пользователей")
+		}
 		_, _ = bot.Send(tgbotapi.NewMessage(message.Chat.ID, "Список лидеров пока пуст."))
 		return
 	}
@@ -469,6 +640,10 @@ func HandleTopMessages(bot *tgbotapi.BotAPI, apiClient *services.HTTPService, me
 // HandleBalance обрабатывает команду /balance
 func HandleBalance(bot *tgbotapi.BotAPI, apiClient *services.HTTPService, message *tgbotapi.Message) {
 	userID := uint64(message.From.ID)
+	dbg := isStdDebug()
+	if dbg {
+		log.Printf("[DEBUG][BALANCE] Запрос баланса: user_id=%d", userID)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -477,9 +652,15 @@ func HandleBalance(bot *tgbotapi.BotAPI, apiClient *services.HTTPService, messag
 	apiResp, err := doStandardJSONRequest(ctx, apiClient, http.MethodGet, "/api/v1/standard/balance", q, nil)
 	if err != nil || !apiResp.OK {
 		log.Printf("Ошибка получения баланса: %v", err)
+		if dbg && apiResp != nil {
+			log.Printf("[DEBUG][BALANCE] code=%q, error=%q", apiResp.Code, apiResp.Error)
+		}
 		return
 	}
 
+	if dbg {
+		log.Printf("[DEBUG][BALANCE] Баланс user_id=%d: %.2f", userID, apiResp.Data.Profile.Balance)
+	}
 	text := fmt.Sprintf("💰 **Ваш текущий баланс:** `%.2f` $.\n"+
 		"Играйте в играх /casino, /roulette, /bones. И зарабатывайте деньги.", apiResp.Data.Profile.Balance)
 	msg := tgbotapi.NewMessage(message.Chat.ID, text)
@@ -491,6 +672,11 @@ func HandleBalance(bot *tgbotapi.BotAPI, apiClient *services.HTTPService, messag
 func HandleProfile(bot *tgbotapi.BotAPI, apiClient *services.HTTPService, message *tgbotapi.Message) {
 	userID := uint64(message.From.ID)
 	chatID := message.Chat.ID
+	dbg := isStdDebug()
+
+	if dbg {
+		log.Printf("[DEBUG][PROFILE] Запрос профиля: user_id=%d, chat_id=%d, chat_type=%s", userID, chatID, message.Chat.Type)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -506,6 +692,9 @@ func HandleProfile(bot *tgbotapi.BotAPI, apiClient *services.HTTPService, messag
 	apiResp, err := doStandardJSONRequest(ctx, apiClient, http.MethodGet, "/api/v1/standard/profile", q, nil)
 	if err != nil || !apiResp.OK {
 		log.Printf("Ошибка профиля: %v", err)
+		if dbg && apiResp != nil {
+			log.Printf("[DEBUG][PROFILE] ok=%v, code=%q, error=%q", apiResp.OK, apiResp.Code, apiResp.Error)
+		}
 		if apiResp != nil && apiResp.Code == "CHAT_ERROR" {
 			_, _ = bot.Send(tgbotapi.NewMessage(message.Chat.ID, "❌ Не удалось получить чат"))
 			return
@@ -576,6 +765,10 @@ func HandleProfile(bot *tgbotapi.BotAPI, apiClient *services.HTTPService, messag
 }
 
 func HandleQuit(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
+	if isStdDebug() {
+		log.Printf("[DEBUG][QUIT] Запрос выхода/кика: user_id=%d, chat_id=%d", message.From.ID, message.Chat.ID)
+	}
+
 	kickConfig := tgbotapi.KickChatMemberConfig{
 		ChatMemberConfig: tgbotapi.ChatMemberConfig{
 			ChatID: message.Chat.ID,

@@ -38,7 +38,7 @@ services:
     environment:
       ADMINER_DEFAULT_SERVER: mariadb
     ports:
-      - "8080:8080"
+      - "7777:8080"
     networks:
       - florenbot
     depends_on:

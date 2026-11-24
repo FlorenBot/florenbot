@@ -8,8 +8,16 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"log"
+	"errors"
 	"strings"
 	"time"
+
+
+	checks "florenbot/backend/checks"
+	"florenbot/backend/engine/cache"
+	"florenbot/backend/engine/helpers"
+	"gorm.io/gorm"
 
 	backend_structs "florenbot/backend/engine/structs"
 	"florenbot/services"
@@ -148,9 +156,20 @@ func (h *StandardHandler) HelpContext(w http.ResponseWriter, r *http.Request) {
 // @Param request body profileInitRequest true "Данные пользователя"
 // @Success 200 {object} standardAPIResponse
 // @Failure 400 {object} standardAPIResponse
+// @Failure 401 {object} standardAPIResponse
+// @Failure 500 {object} standardAPIResponse
 // @Router /api/v1/standard/profile/init [post]
 func (h *StandardHandler) ProfileInit(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
+
+	if err := checks.VerifyRequest(r); err != nil {
+		writeStandardJSON(w, http.StatusUnauthorized, standardAPIResponse{
+			OK:    false,
+			Code:  "INVALID_SIGNATURE",
+			Error: err.Error(),
+		})
+		return
+	}
 
 	var req profileInitRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.UserID == 0 {
@@ -161,13 +180,58 @@ func (h *StandardHandler) ProfileInit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	dbg := isDebugEnabled()
+	username := strings.TrimSpace(req.Username)
+	firstName := strings.TrimSpace(req.FirstName)
+
+	userProfile, err := helpers.GetUserByID(req.UserID)
+	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			if dbg {
+				log.Printf("[DEBUG][PROFILE_INIT] Ошибка получения пользователя %d из БД: %v", req.UserID, err)
+			}
+			writeStandardJSON(w, http.StatusInternalServerError, standardAPIResponse{
+				OK:    false,
+				Code:  "DB_ERROR",
+				Error: "failed to load user profile",
+			})
+			return
+		}
+		userProfile = backend_structs.User{}
+	}
+
+	if userProfile.ID == 0 {
+		if dbg {
+			log.Printf("[DEBUG][PROFILE_INIT] Пользователь %d (%s) не найден, создаём...", req.UserID, firstName)
+		}
+		createdUser, createErr := helpers.CreateUser(req.UserID, username, firstName)
+		if createErr != nil {
+			if dbg {
+				log.Printf("[DEBUG][PROFILE_INIT] Ошибка создания пользователя %d: %v", req.UserID, createErr)
+			}
+			writeStandardJSON(w, http.StatusInternalServerError, standardAPIResponse{
+				OK:    false,
+				Code:  "USER_CREATE_FAILED",
+				Error: "failed to create user in database",
+			})
+			return
+		}
+		userProfile = createdUser
+		if dbg {
+			log.Printf("[DEBUG][PROFILE_INIT] Пользователь создан: %+v", userProfile)
+		}
+	} else if dbg {
+		log.Printf("[DEBUG][PROFILE_INIT] Пользователь %d найден: %+v", req.UserID, userProfile)
+	}
+
+	if bal, balErr := cache.GetBalance(req.UserID, username); balErr == nil {
+		userProfile.Balance = bal
+	}
+
 	writeStandardJSON(w, http.StatusOK, standardAPIResponse{
 		OK: true,
 		Data: &standardDataPayload{
-			Profile: backend_structs.User{
-				FirstName: req.FirstName,
-				Username:  req.Username,
-			},
+			Profile: userProfile,
 		},
 	})
 }

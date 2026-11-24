@@ -1718,6 +1718,18 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/backend_routes_handlers.standardAPIResponse"
                         }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.standardAPIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/backend_routes_handlers.standardAPIResponse"
+                        }
                     }
                 }
             }

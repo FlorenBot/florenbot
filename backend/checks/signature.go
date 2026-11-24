@@ -18,12 +18,12 @@ import (
 const maxSignatureSkewSeconds = 60
 
 func getSignatureSecret() string {
-	for _, key := range []string{"INTERNAL_API_SECRET", "API_SIGNATURE_SECRET"} {
+	for _, key := range []string{"APP_KEY"} {
 		if val := strings.TrimSpace(os.Getenv(key)); val != "" {
 			return val
 		}
 	}
-	return ""
+	panic("APP KEY задайте!")
 }
 
 func computeRequestSignature(secret, timestamp, method, path string, body []byte) string {
@@ -78,6 +78,11 @@ func verifySignedRequest(r *http.Request) error {
 	}
 
 	return nil
+}
+
+// VerifyRequest проверяет HMAC-подпись входящего запроса и восстанавливает r.Body
+func VerifyRequest(r *http.Request) error {
+	return verifySignedRequest(r)
 }
 
 // RequireSignature оборачивает конкретный http.HandlerFunc
