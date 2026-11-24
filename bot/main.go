@@ -11,17 +11,17 @@ import (
 	"syscall"
 	"time"
 
-	"florenbot/bones"
+	"florenbot/bot/bones"
 	"florenbot/consts"
 	services "florenbot/services"
-	helpers "florenbot/helpers"
-	"florenbot/handlers"
-	admin_handlers "florenbot/handlers/admin"
+	helpers "florenbot/bot/helpers"
+	"florenbot/bot/handlers"
+	admin_handlers "florenbot/bot/handlers/admin"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/joho/godotenv"
 
-	"florenbot/workers"
+	"florenbot/bot/workers"
 )
 
 func main() {
@@ -95,9 +95,9 @@ func main() {
 					continue
 				}
 
-				if strings.HasPrefix(update.CallbackQuery.Data, "pay_") {
-					handlers.HandlePayCallback(bot, update.CallbackQuery)
-				}
+				// if strings.HasPrefix(update.CallbackQuery.Data, "pay_") {
+				// 	handlers.HandlePayCallback(bot, update.CallbackQuery)
+				// }
 				continue
 			}
 
@@ -164,9 +164,17 @@ func handleCommands(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	// 	return
 	// }
 
+	baseURL := os.Getenv("API_URL")
+	if baseURL == "" {
+		log.Panic("Нет API_URL в .env")
+		panic("Пожалуйста укажите API_URL!")
+	}
+
+	apiClient := services.NewHTTPService(baseURL, 0)
+
 	switch command {
 	case "start":
-		handlers.HandleStart(bot, message)
+		handlers.HandleStart(bot, apiClient, message)
 	case "balance":
 		handlers.HandleBalance(bot, message)
 	case "pin":
@@ -179,10 +187,10 @@ func handleCommands(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 		handlers.HandleClan(bot, message)
 	case "roulette":
 		handlers.HandleRoulette(bot, message)
-	case "check":
-		handlers.HandleMyAccount(bot, message)
-	case "createcheck":
-		handlers.HandleCreateCheck(bot, message)
+	// case "check":
+	// 	handlers.HandleMyAccount(bot, message)
+	// case "createcheck":
+	// 	handlers.HandleCreateCheck(bot, message)
 	case "bones":
 		bones.HandleBones(bot, message)
 	case "q":
@@ -193,8 +201,8 @@ func handleCommands(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 		handlers.HandleTopBalance(bot, message)
 	case "givemoney":
 		admin_handlers.HandleGiveMoney(bot, message)
-	case "pay":
-		handlers.HandlePay(bot, message)
+	// case "pay":
+	// 	handlers.HandlePay(bot, message)
 	case "cloneroles":
 		admin_handlers.HandleCloneRoles(bot, message)
 	case "promo":
@@ -204,9 +212,9 @@ func handleCommands(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	case "msg":
 		admin_handlers.HandleSendMessage(bot, message)
 	case "bonus":
-		handlers.HandleBonus(bot, message)
+		handlers.HandleBonus(bot, apiClient, message)
 	case "vip":
-		handlers.HandleVip(bot, message)
+		handlers.HandleVip(bot, apiClient, message)
 	case "rep":
 		handlers.HandleReputation(bot, message)
 	case "report":
@@ -236,7 +244,7 @@ func handleCommands(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	case "editrole":
 		admin_handlers.HandleEditRole(bot, message)
 	case "help":
-		handlers.HandleHelp(bot, message)
+		handlers.HandleHelp(bot, apiClient, message)
 	case "roles":
 		admin_handlers.HandleRoles(bot, message)
 	case "delrole":
